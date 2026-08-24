@@ -142,21 +142,14 @@ export async function drivingDirections(from: GeoPoint, to: GeoPoint): Promise<D
     isEstimate: false,
   };
 }
-
-export function getTileLayerConfig() {
-  const provider = (import.meta.env.VITE_MAP_TILE_PROVIDER as string) || 'osm';
-  const maptilerKey = import.meta.env.VITE_MAPTILER_API_KEY as string | undefined;
-
-  if (provider === 'maptiler' && maptilerKey) {
-    return {
-      url: `https://api.maptiler.com/maps/streets-v2/{z}/{x}/{y}.png?key=${maptilerKey}`,
-      attribution: '&copy; MapTiler &copy; OpenStreetMap contributors',
-    };
-  }
-
-  // Default: free OSM raster tiles, no key required.
-  return {
-    url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-    attribution: '&copy; OpenStreetMap contributors',
-  };
+/**
+ * Basemap style — OpenFreeMap (https://openfreemap.org), served as vector
+ * tiles for MapLibre GL. Free, no API key, no request limits, funded by
+ * donations rather than rate-limited like tile.openstreetmap.org. Comes in
+ * three styles: 'positron' (clean/minimal — default here), 'liberty'
+ * (classic OSM look), 'bright' (high contrast).
+ */
+export function getMapStyle(): string {
+  const style = (import.meta.env.VITE_MAP_STYLE as string) || 'positron';
+  return `https://tiles.openfreemap.org/styles/${style}`;
 }

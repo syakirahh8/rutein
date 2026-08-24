@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { MapContainer, TileLayer, Marker, Polyline, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { watchPosition, distanceMeters, isGeolocationSupported } from '@/services/locationService';
-import { getTileLayerConfig } from '@/services/mapService';
+
 import type { GeoPoint } from '@/types/domain.types';
 import type { GeoServiceError } from '@/services/locationService';
 
@@ -181,3 +181,18 @@ const closeBtn: React.CSSProperties = {
   height: 30,
   color: 'var(--color-text)',
 };
+
+// Legacy raster tile config — kept only for components not yet migrated
+// to the OpenFreeMap/MapLibre vector style (see getMapStyle below).
+// TODO: remove once LiveGpsModal.tsx is migrated to MapLibre.
+export function getTileLayerConfig() {
+  return {
+    url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+    attribution: '&copy; OpenStreetMap contributors',
+  };
+}
+
+export function getMapStyle(): string {
+  const style = (import.meta.env.VITE_MAP_STYLE as string) || 'positron';
+  return `https://tiles.openfreemap.org/styles/${style}`;
+}
