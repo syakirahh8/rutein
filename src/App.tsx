@@ -1,0 +1,50 @@
+import React from 'react';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { AuthProvider } from '@/contexts/AuthContext';
+import ProtectedRoute from '@/components/ProtectedRoute';
+import NavBar from '@/components/NavBar';
+
+import Login from '@/pages/Login';
+import Dashboard from '@/pages/Dashboard';
+import MapPage from '@/pages/MapPage';
+import RouteComparison from '@/pages/RouteComparison';
+import RouteDetail from '@/pages/RouteDetail';
+import BudgetPlanner from '@/pages/BudgetPlanner';
+import Schedule from '@/pages/Schedule';
+import Disruptions from '@/pages/Disruptions';
+import ConfusedMode from '@/pages/ConfusedMode';
+import SavedPlaces from '@/pages/SavedPlaces';
+import Preferences from '@/pages/Preferences';
+import Profile from '@/pages/Profile';
+
+function AppLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <ProtectedRoute>
+      <NavBar />
+      {children}
+    </ProtectedRoute>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route path="/" element={<AppLayout><Dashboard /></AppLayout>} />
+          <Route path="/map" element={<AppLayout><MapPage /></AppLayout>} />
+          <Route path="/routes" element={<AppLayout><RouteComparison /></AppLayout>} />
+          <Route path="/routes/:searchId" element={<AppLayout><RouteDetail /></AppLayout>} />
+          <Route path="/budget" element={<AppLayout><BudgetPlanner /></AppLayout>} />
+          <Route path="/schedule" element={<AppLayout><Schedule /></AppLayout>} />
+          <Route path="/disruptions" element={<AppLayout><Disruptions /></AppLayout>} />
+          <Route path="/confused" element={<AppLayout><ConfusedMode /></AppLayout>} />
+          <Route path="/places" element={<AppLayout><SavedPlaces /></AppLayout>} />
+          <Route path="/preferences" element={<AppLayout><Preferences /></AppLayout>} />
+          <Route path="/profile" element={<AppLayout><Profile /></AppLayout>} />
+        </Routes>
+      </BrowserRouter>
+    </AuthProvider>
+  );
+}
