@@ -15,8 +15,11 @@ import type { PlaceResult } from '@/types/domain.types';
 
 const NOMINATIM_BASE = 'https://nominatim.openstreetmap.org';
 
-// Bias results toward Jakarta / Jabodetabek since this app targets
-// Indonesian public transit, without hard-restricting other areas.
+// Bias results toward Jakarta / Jabodetabek since this app's transit data
+// currently covers that area most densely. `bounded=0` below means this is
+// a soft bias, not a hard restriction — searches for other Indonesian
+// cities (Surabaya, Bandung, Yogyakarta, Medan, etc.) still work, they're
+// just ranked slightly lower than Jakarta-area matches.
 const JAKARTA_VIEWBOX = '106.5,-6.5,107.1,-5.9';
 
 function toPlaceResult(item: any): PlaceResult {
@@ -39,6 +42,7 @@ export async function searchPlaces(query: string, limit = 6): Promise<PlaceResul
   url.searchParams.set('limit', String(limit));
   url.searchParams.set('viewbox', JAKARTA_VIEWBOX);
   url.searchParams.set('bounded', '0'); // bias, don't hard-restrict
+  url.searchParams.set('countrycodes', 'id'); // keep results within Indonesia
 
   const res = await fetch(url.toString(), {
     headers: {

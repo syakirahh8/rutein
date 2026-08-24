@@ -10,6 +10,7 @@ const MODE_ICON: Record<string, string> = {
   mrt: '🚇',
   krl: '🚆',
   lrt: '🚈',
+  ojek: '🛵',
   other: '🚏',
 };
 
@@ -25,6 +26,13 @@ function formatCost(idr: number): string {
   return idr === 0 ? 'Free' : `Rp${idr.toLocaleString('id-ID')}`;
 }
 
+function legModeLabel(mode: string): string {
+  switch (mode) {
+    case 'walk': return 'Walk';
+    case 'ojek': return 'Ojek online';
+    default: return mode;
+  }
+}
 export default function RouteDetail() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -93,7 +101,7 @@ export default function RouteDetail() {
             </div>
             <div className="card" style={{ flex: 1, marginBottom: 14 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <strong style={{ fontSize: 14 }}>{leg.routeLabel ?? (leg.mode === 'walk' ? 'Walk' : leg.mode)}</strong>
+                <strong style={{ fontSize: 14 }}>{leg.routeLabel ?? legModeLabel(leg.mode)}</strong>
                 <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>{formatDuration(leg.durationS)}</span>
               </div>
               <p style={{ margin: '6px 0 0', fontSize: 13, color: 'var(--color-text-muted)' }}>{leg.instructions}</p>

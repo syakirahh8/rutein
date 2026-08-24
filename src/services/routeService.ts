@@ -1,6 +1,6 @@
 import type { GeoPoint, PlaceResult, RouteLeg, RouteOption, RouteComparisonResult } from '@/types/domain.types';
 import type { TransportMode, TransportRoute, TransportStop } from '@/types/database.types';
-import { walkingDirections } from './mapService';
+import { walkingDirections, drivingDirections } from './mapService';
 import { findNearbyStops, getAllRoutes, getStopsForRoute } from './transportService';
 import { distanceMeters } from './locationService';
 import { supabase } from '@/lib/supabaseClient';
@@ -8,6 +8,8 @@ import { supabase } from '@/lib/supabaseClient';
 // ------------------------------------------------------------------
 // Cost model (flat fares, IDR) — realistic public TransJakarta/MRT/KRL
 // approximations. Swap with a real fare-matrix table/API later.
+// Ojek (ride-hailing motorbike) is distance-based, not flat — see
+// estimateOjekFareIdr() below, matching how Gojek/Grab Bike actually price.
 // ------------------------------------------------------------------
 const FARE_IDR: Record<TransportMode, number> = {
   walk: 0,
@@ -16,6 +18,7 @@ const FARE_IDR: Record<TransportMode, number> = {
   mrt: 8000,
   krl: 4000,
   lrt: 5000,
+  ojek: 0, // computed dynamically per-leg, see estimateOjekFareIdr()
   other: 5000,
 };
 
@@ -26,10 +29,33 @@ const MODE_SPEED_MPS: Record<TransportMode, number> = {
   mrt: 11,
   krl: 13,
   lrt: 10,
+  ojek: 8.3,
   other: 7,
 };
 
-const WALK_RADIUS_M = 900; // how far a user is assumed willing to walk to a stop
+// How far a user is assumed willing to walk to reach a transit stop.
+// Widened for longer trips — it's worth a 1.5-2km walk to reach a stop
+// that saves many kilometers of walking/riding overall, but not worth it
+// for a trip that's only a couple hundred meters to begin with.
+const STOP_SEARCH_RADIUS_SHORT_M = 900;  // trips under ~5km
+const STOP_SEARCH_RADIUS_LONG_M = 2200;  // trips 5km and above
+const LONG_TRIP_THRESHOLD_M = 5000;
+
+// Below this, walking the whole way is genuinely the simplest answer and
+// ojek isn't worth booking. Above it, ojek becomes a real alternative.
+const OJEK_MIN_DISTANCE_M = 700;
+
+// Gojek/Grab-style motorbike ride-hailing fare model: a flat minimum fare
+// covers a base distance, then a per-km rate applies beyond that.
+const OJEK_BASE_FARE_IDR = 9000;
+const OJEK_BASE_DISTANCE_M = 4000;
+const OJEK_PER_KM_IDR = 2500;
+
+function estimateOjekFareIdr(distanceM: number): number {
+  if (distanceM <= OJEK_BASE_DISTANCE_M) return OJEK_BASE_FARE_IDR;
+  const extraKm = (distanceM - OJEK_BASE_DISTANCE_M) / 1000;
+  return Math.round(OJEK_BASE_FARE_IDR + extraKm * OJEK_PER_KM_IDR);
+}
 
 function estimateTransitLegDuration(distanceM: number, mode: TransportMode): number {
   return distanceM / (MODE_SPEED_MPS[mode] ?? MODE_SPEED_MPS.other);
@@ -56,6 +82,28 @@ async function buildWalkLeg(from: GeoPoint | PlaceResult, to: GeoPoint | PlaceRe
     instructions: directions.isEstimate
       ? 'Walk to destination (estimated distance — precise walking directions unavailable).'
       : 'Walk to destination.',
+  };
+}
+
+/**
+ * Builds a door-to-door ojek online (ride-hailing motorbike) leg — the
+ * default fallback for distances too far to walk comfortably that aren't
+ * covered by a single fixed-route transit line. No walking required; the
+ * driver picks up right at the origin.
+ */
+async function buildOjekLeg(from: GeoPoint | PlaceResult, to: GeoPoint | PlaceResult): Promise<RouteLeg> {
+  const directions = await drivingDirections(from, to);
+  return {
+    mode: 'ojek',
+    from,
+    to,
+    distanceM: directions.distanceM,
+    durationS: directions.durationS,
+    estimatedCostIdr: estimateOjekFareIdr(directions.distanceM),
+    isTransfer: false,
+    instructions: directions.isEstimate
+      ? 'Ojek online (e.g. Gojek/Grab Bike) — door-to-door, estimated fare and time.'
+      : 'Ojek online (e.g. Gojek/Grab Bike) — door-to-door.',
   };
 }
 
@@ -98,26 +146,50 @@ function summarizeOption(legs: RouteLeg[]): Omit<RouteOption, 'id' | 'category' 
 
 /**
  * Generates candidate multi-leg journeys between origin and destination:
- *  1. Direct walk (always included as a baseline/fallback option)
- *  2. Walk -> nearest transit stop -> ride route -> walk -> destination,
- *     for every transit route that has a stop near both origin and destination
+ *  1. Direct walk — always included as a baseline. For long trips it will
+ *     naturally lose on "fastest"/"moderate" once other options exist, but
+ *     it stays technically correct as "cheapest" for anyone willing to walk.
+ *  2. Direct ojek online (ride-hailing motorbike) — Indonesia's default
+ *     answer for medium/long distances that aren't well served by a single
+ *     fixed-route transit line. Door-to-door, no walking required.
+ *  3. Walk -> nearest transit stop -> ride route -> walk -> destination,
+ *     for every transit route that has a stop near both origin and
+ *     destination. The search radius widens for longer trips, since it's
+ *     worth walking 1.5-2km to reach transit that saves many km overall.
+ *  4. Ojek to the nearest usable transit hub -> ride -> walk, used only
+ *     when no single route directly covers both ends but a nearby hub
+ *     does — this is the "walk a short amount, then find a bus/train
+ *     near there" case, reached via a short ojek hop instead of an
+ *     unreasonably long walk to the hub.
  *
- * This is intentionally a real (if simplified) journey planner rather than
- * hardcoded route cards — it reacts to whatever routes/stops exist in the
- * transport_routes/transport_stops tables.
+ * This reacts to whatever routes/stops actually exist in the
+ * transport_routes/transport_stops tables rather than hardcoding cards —
+ * but it's still single-hub, single-transfer planning. True multi-hop
+ * pathfinding (walk -> bus -> MRT -> walk across three separate routes)
+ * is a larger extension noted in the README as a known limitation.
  */
 export async function generateRouteOptions(origin: PlaceResult, destination: PlaceResult): Promise<RouteOption[]> {
   const options: RouteOption[] = [];
+  const directDistanceM = distanceMeters(origin, destination);
 
-  // Option A: direct walk (useful baseline, and the only option if nothing
-  // else is nearby).
+  // Option A: direct walk.
   const directWalk = await buildWalkLeg(origin, destination);
   options.push({ id: makeLegId(), ...summarizeOption([directWalk]) });
 
-  // Option B..N: single-transfer transit journeys.
+  // Option B: direct ojek online — always offered above a short minimum
+  // distance, since it's realistically how most medium-distance trips in
+  // Jakarta actually get made when transit doesn't line up conveniently.
+  if (directDistanceM >= OJEK_MIN_DISTANCE_M) {
+    const ojekLeg = await buildOjekLeg(origin, destination);
+    options.push({ id: makeLegId(), ...summarizeOption([ojekLeg]) });
+  }
+
+  // Option C..N: single-route transit journeys (walk -> ride -> walk).
+  const stopSearchRadiusM = directDistanceM >= LONG_TRIP_THRESHOLD_M ? STOP_SEARCH_RADIUS_LONG_M : STOP_SEARCH_RADIUS_SHORT_M;
+
   const [nearOrigin, nearDest, allRoutes] = await Promise.all([
-    findNearbyStops(origin, WALK_RADIUS_M),
-    findNearbyStops(destination, WALK_RADIUS_M),
+    findNearbyStops(origin, stopSearchRadiusM),
+    findNearbyStops(destination, stopSearchRadiusM),
     getAllRoutes(),
   ]);
 
@@ -148,6 +220,40 @@ export async function generateRouteOptions(origin: PlaceResult, destination: Pla
 
     const legs = [walkToStop, transitLeg, walkFromStop];
     options.push({ id: makeLegId(), ...summarizeOption(legs) });
+  }
+
+  // Option: ojek to a nearby transit hub, then ride, then walk — used only
+  // when no single route directly covers both ends (candidateRouteIds is
+  // empty) but the origin is near *some* stop and the trip is long enough
+  // that a hybrid ojek+transit trip beats a long ojek-only ride on cost.
+  if (candidateRouteIds.size === 0 && directDistanceM >= LONG_TRIP_THRESHOLD_M) {
+    const nearOriginWide = await findNearbyStops(origin, 5000);
+    const nearDestWide = nearOriginWide.length > 0 ? await findNearbyStops(destination, 5000) : [];
+    const destRouteIdsWide = new Set(nearDestWide.map((s) => s.route_id));
+    const hubRouteId = nearOriginWide.map((s) => s.route_id).find((id): id is string => !!id && destRouteIdsWide.has(id));
+
+    if (hubRouteId) {
+      const route = allRoutes.find((r) => r.id === hubRouteId);
+      const boardStop = nearOriginWide.find((s) => s.route_id === hubRouteId);
+      const alightStop = nearDestWide.find((s) => s.route_id === hubRouteId);
+
+      if (route && boardStop && alightStop && boardStop.id !== alightStop.id) {
+        const ojekToHub = await buildOjekLeg(origin, {
+          lat: boardStop.latitude,
+          lng: boardStop.longitude,
+          label: boardStop.stop_name,
+          address: boardStop.stop_name,
+        });
+        const transitLeg = buildTransitLeg(route, boardStop, alightStop);
+        const walkFromStop = await buildWalkLeg(
+          { lat: alightStop.latitude, lng: alightStop.longitude, label: alightStop.stop_name, address: alightStop.stop_name },
+          destination
+        );
+
+        const legs = [ojekToHub, transitLeg, walkFromStop];
+        options.push({ id: makeLegId(), ...summarizeOption(legs) });
+      }
+    }
   }
 
   return options;

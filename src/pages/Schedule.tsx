@@ -61,8 +61,8 @@ export default function Schedule() {
               <strong>{selectedRoute.route_name}</strong>
               <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>{selectedRoute.operator}</div>
             </div>
-            <span className={`badge ${selectedRoute.source === 'fallback' ? 'badge-fallback' : 'badge-live'}`}>
-              {selectedRoute.source === 'fallback' ? 'Reference data' : 'Live'}
+            <span className={`badge ${routeSourceBadgeClass(selectedRoute.source)}`}>
+              {routeSourceLabel(selectedRoute.source)}
             </span>
           </div>
         </div>
@@ -105,4 +105,20 @@ function StatusPill({ status }: { status: string }) {
       {status.replace('_', ' ')}
     </span>
   );
+}
+
+function routeSourceBadgeClass(source: string): string {
+  switch (source) {
+    case 'official': return 'badge-live';
+    case 'curated': return 'badge-moderate';
+    default: return 'badge-fallback';
+  }
+}
+
+function routeSourceLabel(source: string): string {
+  switch (source) {
+    case 'official': return 'Official live feed';
+    case 'curated': return 'Real stations, curated';
+    default: return 'Demo data';
+  }
 }

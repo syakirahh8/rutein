@@ -6,7 +6,6 @@ interface Props {
   onSelect?: () => void;
   selected?: boolean;
 }
-
 const MODE_ICON: Record<string, string> = {
   walk: '🚶',
   bus: '🚌',
@@ -14,6 +13,7 @@ const MODE_ICON: Record<string, string> = {
   mrt: '🚇',
   krl: '🚆',
   lrt: '🚈',
+  ojek: '🛵',
   other: '🚏',
 };
 

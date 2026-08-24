@@ -78,6 +78,71 @@ export async function walkingDirections(from: GeoPoint, to: GeoPoint): Promise<D
   };
 }
 
+/**
+ * Road-following directions, used to estimate ojek online (ride-hailing
+ * motorbike) legs. Reuses ORS's 'driving-car' profile as the closest
+ * available approximation of road-network distance/time for a motorbike —
+ * ORS has no dedicated motorbike profile. Real motorbikes often move faster
+ * than car-traffic estimates (lane-splitting), which the fallback speed
+ * constant below already accounts for.
+ *
+ * Falls back to a straight-line-distance x road-curvature-factor estimate
+ * when no ORS key is configured, exactly like walkingDirections().
+ */
+const ROAD_CURVATURE_FACTOR = 1.3; // real road distance vs. straight-line, typical urban ratio
+const AVERAGE_MOTORBIKE_SPEED_MPS = 8.3; // ~30 km/h average incl. Jakarta traffic + lane-splitting
+
+export async function drivingDirections(from: GeoPoint, to: GeoPoint): Promise<DirectionsResult> {
+  const apiKey = getOrsKey();
+
+  if (!apiKey) {
+    const distanceM = distanceMeters(from, to) * ROAD_CURVATURE_FACTOR;
+    return {
+      distanceM,
+      durationS: distanceM / AVERAGE_MOTORBIKE_SPEED_MPS,
+      geometry: [from, to],
+      isEstimate: true,
+    };
+  }
+
+  const res = await fetch(`${ORS_BASE}/driving-car/geojson`, {
+    method: 'POST',
+    headers: {
+      Authorization: apiKey,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      coordinates: [
+        [from.lng, from.lat],
+        [to.lng, to.lat],
+      ],
+    }),
+  });
+
+  if (!res.ok) {
+    const distanceM = distanceMeters(from, to) * ROAD_CURVATURE_FACTOR;
+    return {
+      distanceM,
+      durationS: distanceM / AVERAGE_MOTORBIKE_SPEED_MPS,
+      geometry: [from, to],
+      isEstimate: true,
+    };
+  }
+
+  const data = await res.json();
+  const feature = data.features?.[0];
+  const summary = feature?.properties?.summary;
+  const coords: [number, number][] = feature?.geometry?.coordinates ?? [];
+  const distanceM = summary?.distance ?? distanceMeters(from, to) * ROAD_CURVATURE_FACTOR;
+
+  return {
+    distanceM,
+    durationS: distanceM / AVERAGE_MOTORBIKE_SPEED_MPS,
+    geometry: coords.map(([lng, lat]) => ({ lat, lng })),
+    isEstimate: false,
+  };
+}
+
 export function getTileLayerConfig() {
   const provider = (import.meta.env.VITE_MAP_TILE_PROVIDER as string) || 'osm';
   const maptilerKey = import.meta.env.VITE_MAPTILER_API_KEY as string | undefined;
