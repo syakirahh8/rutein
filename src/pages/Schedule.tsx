@@ -1,230 +1,261 @@
-import React, { useEffect, useState } from 'react';
+import React, { useMemo, useState } from 'react';
+import { INDONESIA_TRANSPORT_DATA, TRANSPORT_TYPE_LABELS, type IndonesiaTransportType } from '@/data/indonesiaTransportData';
+import {
+  TRANSPORT_ROUTES,
+  FARE_ESTIMATE,
+  getRouteForStation,
+  getUpcomingDepartures,
+  getFullDaySchedule,
+  groupScheduleByDirectionAndHour,
+  type DepartureStatus,
+} from '@/data/transportationScheduledata';
 
-// --- 1. HARDCODED TRANSPORT DATA & FARES ---
-type TransportType = 'transjakarta' | 'bus' | 'krl' | 'mrt' | 'lrt' | 'train' | 'airport_rail' | 'ferry' | 'terminal';
+const TYPE_ORDER: IndonesiaTransportType[] = ['transjakarta', 'mrt', 'lrt', 'krl', 'bus', 'airport_rail', 'train', 'ferry', 'terminal'];
 
-interface Location {
-  id: string;
-  name: string;
-  type: TransportType;
-  city: string;
-  line: string;
-}
-
-// A representative sample of your provided data
-const LOCATIONS: Location[] = [
-  { id: 'idn-1', name: 'Lebak Bulus Grab', type: 'mrt', city: 'Jakarta', line: 'MRT North-South Line' },
-  { id: 'idn-14', name: 'Pegangsaan Dua', type: 'lrt', city: 'Jakarta', line: 'LRT Jakarta' },
-  { id: 'idn-27', name: 'Blok M', type: 'transjakarta', city: 'Jakarta', line: 'Koridor 1' },
-  { id: 'idn-41', name: 'Bogor', type: 'krl', city: 'Bogor', line: 'KRL Bogor Line' },
-  { id: 'idn-52', name: 'Manggarai', type: 'krl', city: 'Jakarta', line: 'KRL Commuter Line Interchange' },
-  { id: 'idn-54', name: 'BNI City', type: 'airport_rail', city: 'Jakarta', line: 'KA Bandara Soekarno-Hatta' },
-  { id: 'idn-60', name: 'Malioboro', type: 'bus', city: 'Yogyakarta', line: 'Trans Jogja Koridor 1A' },
-  { id: 'idn-63', name: 'Ampera', type: 'lrt', city: 'Palembang', line: 'LRT Sumatera Selatan' },
-  { id: 'idn-65', name: 'Pelabuhan Merak', type: 'ferry', city: 'Banten', line: 'Java-Sumatra Ferry Crossing' },
-];
-
-// Current ticket prices for Indonesian public transport
-const FARE_DATA: Record<TransportType, string> = {
-  transjakarta: 'Rp 3.500 (Flat)',
-  mrt: 'Rp 3.000 + Rp 1.000/station (Max Rp 14.000)',
-  lrt: 'Rp 5.000 (Flat) / Up to Rp 20.000 (LRT Jabodebek)',
-  krl: 'Rp 3.000 (First 25km) + Rp 1.000/10km',
-  bus: 'Rp 3.600 - Rp 5.000 (Flat)',
-  airport_rail: 'Rp 30.000 - Rp 70.000',
-  train: 'Varies by destination and class',
-  ferry: '~Rp 22.700 (Regular Pedestrian)',
-  terminal: 'Varies by bus operator',
-};
-
-interface MockSchedule {
-  id: string;
-  arrivalTime: Date;
-  minutesAway: number;
-  status: 'on_time' | 'delayed' | 'cancelled';
-  humanText: string;
-}
-
-// --- 2. MAIN COMPONENT ---
 export default function Schedule() {
-  const [selectedLocId, setSelectedLocId] = useState<string>(LOCATIONS[0].id);
-  const [schedules, setSchedules] = useState<MockSchedule[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [selectedType, setSelectedType] = useState<IndonesiaTransportType | 'all'>('all');
+  const [selectedStationId, setSelectedStationId] = useState<string | null>(null);
 
-  // Generate realistic upcoming schedules whenever the selected location changes
-  useEffect(() => {
-    setLoading(true);
-    
-    // Simulate a brief network delay for realism
-    const timer = setTimeout(() => {
-      const now = new Date();
-      const generated: MockSchedule[] = [];
-      
-      // We'll generate 3-4 upcoming arrivals
-      let baseMinutes = 0;
-      for (let i = 0; i < 4; i++) {
-        // Space them out: first one comes fast, others take longer
-        const gap = i === 0 ? Math.floor(Math.random() * 5) + 1 : Math.floor(Math.random() * 12) + 10;
-        baseMinutes += gap;
-        
-        const arrTime = new Date(now.getTime() + baseMinutes * 60000);
-        
-        // Formulate the exact phrasing you requested
-        let text = '';
-        if (baseMinutes <= 5) text = `Coming in ${baseMinutes} minutes`;
-        else if (baseMinutes <= 15) text = `Arriving in ${baseMinutes} minutes`;
-        else text = `Wait around ${baseMinutes} minutes`;
+  const presentTypes = useMemo(() => TYPE_ORDER.filter((t) => TRANSPORT_ROUTES.some((r) => r.type === t)), []);
 
-        // 10% chance of delay, 5% chance of cancellation
-        const rand = Math.random();
-        let status: 'on_time' | 'delayed' | 'cancelled' = 'on_time';
-        if (rand > 0.95) status = 'cancelled';
-        else if (rand > 0.85) status = 'delayed';
+  const routesForType = useMemo(
+    () => TRANSPORT_ROUTES.filter((r) => selectedType === 'all' || r.type === selectedType).sort((a, b) => a.line.localeCompare(b.line)),
+    [selectedType]
+  );
 
-        generated.push({
-          id: `${selectedLocId}-sch-${i}`,
-          arrivalTime: arrTime,
-          minutesAway: baseMinutes,
-          status,
-          humanText: status === 'cancelled' ? 'Service cancelled' : text,
-        });
-      }
-      
-      setSchedules(generated);
-      setLoading(false);
-    }, 400);
-
-    return () => clearTimeout(timer);
-  }, [selectedLocId]);
-
-  const selectedLoc = LOCATIONS.find((r) => r.id === selectedLocId);
+  const selectedStation = selectedStationId ? INDONESIA_TRANSPORT_DATA.find((s) => s.id === selectedStationId) ?? null : null;
+  const selectedRoute = selectedStationId ? getRouteForStation(selectedStationId) : null;
+  const upcoming = selectedStationId ? getUpcomingDepartures(selectedStationId) : [];
+  const fullDayGrouped = selectedStationId ? groupScheduleByDirectionAndHour(getFullDaySchedule(selectedStationId)) : null;
 
   return (
-    <div className="container" style={{ maxWidth: 600, margin: '0 auto', fontFamily: 'sans-serif' }}>
+    <div className="container">
       <h1>Transport Schedule</h1>
       <p style={{ color: 'var(--color-text-muted)', marginTop: 0 }}>
-        Live departure status and fare information.
+        Browse by transport type, pick a station, and see its route and today's departures.
       </p>
 
-      {/* Horizontal Scrollable Location Tabs */}
+      {/* Type tabs */}
       <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 8, marginBottom: 16 }}>
-        {LOCATIONS.map((loc) => (
-          <button
-            key={loc.id}
-            className="btn"
-            style={{
-              padding: '8px 16px',
-              border: 'none',
-              borderRadius: 20,
-              cursor: 'pointer',
-              fontWeight: 600,
-              whiteSpace: 'nowrap',
-              background: selectedLocId === loc.id ? '#0052CC' : '#E9ECEF',
-              color: selectedLocId === loc.id ? '#FFFFFF' : '#333333',
-            }}
-            onClick={() => setSelectedLocId(loc.id)}
-          >
-            {loc.name}
-          </button>
+        <TypeTab label="All" active={selectedType === 'all'} onClick={() => { setSelectedType('all'); setSelectedStationId(null); }} />
+        {presentTypes.map((t) => (
+          <TypeTab
+            key={t}
+            label={TRANSPORT_TYPE_LABELS[t]}
+            active={selectedType === t}
+            onClick={() => { setSelectedType(t); setSelectedStationId(null); }}
+          />
         ))}
       </div>
 
-      {selectedLoc && (
-        <div className="card" style={{ 
-          background: '#F8F9FA', 
-          border: '1px solid #E9ECEF', 
-          borderRadius: 8, 
-          padding: 16, 
-          marginBottom: 16 
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <div>
-              <strong style={{ fontSize: 18, display: 'block' }}>{selectedLoc.name}</strong>
-              <div style={{ fontSize: 14, color: '#666', marginTop: 4 }}>{selectedLoc.line} • {selectedLoc.city}</div>
+      {/* Route list for the selected type */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 20 }}>
+        {routesForType.map((route) => (
+          <div key={route.key} className="card">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
+              <strong style={{ fontSize: 15 }}>{route.line}</strong>
+              <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
+                {TRANSPORT_TYPE_LABELS[route.type]} · {route.stops.length} stop{route.stops.length === 1 ? '' : 's'}
+              </span>
             </div>
-            <span style={{ 
-              background: '#E3F2FD', 
-              color: '#0D47A1', 
-              padding: '4px 8px', 
-              borderRadius: 4, 
-              fontSize: 12, 
-              fontWeight: 'bold' 
-            }}>
-              Curated Data
-            </span>
-          </div>
-          
-          {/* Ticket Price Section */}
-          <div style={{ 
-            marginTop: 16, 
-            paddingTop: 12, 
-            borderTop: '1px solid #DEE2E6',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8
-          }}>
-            <span style={{ fontSize: 14, fontWeight: 600, color: '#333' }}>🎟️ Estimated Fare:</span>
-            <span style={{ fontSize: 14, color: '#00875A', fontWeight: 700 }}>
-              {FARE_DATA[selectedLoc.type]}
-            </span>
-          </div>
-        </div>
-      )}
-
-      {/* Schedule List */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {loading ? (
-           <p style={{ color: '#666', fontSize: 14, textAlign: 'center', padding: 20 }}>Generating real-time schedules...</p>
-        ) : (
-          schedules.map((s) => (
-            <div key={s.id} className="card" style={{ 
-              display: 'flex', 
-              justifyContent: 'space-between', 
-              alignItems: 'center',
-              background: '#FFFFFF',
-              border: '1px solid #E9ECEF',
-              borderRadius: 8,
-              padding: 16
-            }}>
-              <div>
-                <div style={{ fontSize: 16, fontWeight: 600, color: s.status === 'cancelled' ? '#999' : '#111' }}>
-                  {s.arrivalTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} WIB
-                </div>
-                <div style={{ fontSize: 13, color: s.status === 'cancelled' ? '#DE350B' : '#666', marginTop: 4 }}>
-                  {s.humanText}
-                </div>
+            {route.hasDirections && (
+              <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 8 }}>
+                {route.originLabel} ↔ {route.destinationLabel}
               </div>
-              
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                <StatusPill status={s.status} />
-              </div>
+            )}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {route.stops.map((stop) => (
+                <button
+                  key={stop.id}
+                  type="button"
+                  onClick={() => setSelectedStationId(stop.id)}
+                  style={{
+                    padding: '5px 10px',
+                    borderRadius: 14,
+                    border: '1px solid var(--color-border)',
+                    background: selectedStationId === stop.id ? 'var(--color-primary)' : 'var(--color-surface-raised)',
+                    color: selectedStationId === stop.id ? '#fff' : 'var(--color-text)',
+                    fontSize: 12,
+                    cursor: 'pointer',
+                  }}
+                >
+                  {stop.name}
+                </button>
+              ))}
             </div>
-          ))
+          </div>
+        ))}
+        {routesForType.length === 0 && (
+          <p style={{ color: 'var(--color-text-muted)' }}>No routes for this type.</p>
         )}
       </div>
+
+      {/* Station detail */}
+      {selectedStation && selectedRoute && (
+        <div className="card" style={{ marginBottom: 20 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+            <div>
+              <strong style={{ fontSize: 18, display: 'block' }}>{selectedStation.name}</strong>
+              <div style={{ fontSize: 13, color: 'var(--color-text-muted)', marginTop: 4 }}>
+                {selectedRoute.line} · {selectedStation.city}, {selectedStation.province}
+              </div>
+            </div>
+            <span
+              style={{
+                background: 'var(--color-surface-raised)',
+                border: '1px solid var(--color-border)',
+                padding: '4px 8px',
+                borderRadius: 4,
+                fontSize: 11,
+                fontWeight: 700,
+                color: 'var(--color-text-muted)',
+              }}
+            >
+              {TRANSPORT_TYPE_LABELS[selectedStation.type]}
+            </span>
+          </div>
+
+          <div style={{ fontSize: 13, marginBottom: 16 }}>
+            <span style={{ color: 'var(--color-text-muted)' }}>Estimated fare: </span>
+            <strong>{FARE_ESTIMATE[selectedStation.type]}</strong>
+          </div>
+
+          {/* Route context */}
+          {selectedRoute.hasDirections ? (
+            <div style={{ marginBottom: 16 }}>
+              <h4 style={{ marginBottom: 8 }}>Route</h4>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center' }}>
+                {selectedRoute.stops.map((stop, i) => (
+                  <React.Fragment key={stop.id}>
+                    <span
+                      style={{
+                        fontSize: 12,
+                        padding: '3px 8px',
+                        borderRadius: 10,
+                        background: stop.id === selectedStation.id ? 'var(--color-primary)' : 'transparent',
+                        color: stop.id === selectedStation.id ? '#fff' : 'var(--color-text-muted)',
+                        fontWeight: stop.id === selectedStation.id ? 700 : 400,
+                      }}
+                    >
+                      {stop.name}
+                    </span>
+                    {i < selectedRoute.stops.length - 1 && <span style={{ color: 'var(--color-text-muted)' }}>›</span>}
+                  </React.Fragment>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <p style={{ fontSize: 13, color: 'var(--color-text-muted)', marginBottom: 16 }}>
+              Single point of service — no directional schedule to show.
+            </p>
+          )}
+
+          {/* Upcoming departures */}
+          {selectedRoute.hasDirections && (
+            <div style={{ marginBottom: 16 }}>
+              <h4 style={{ marginBottom: 8 }}>Upcoming departures</h4>
+              {upcoming.length === 0 ? (
+                <p style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>No more departures today.</p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {upcoming.map((dep) => (
+                    <div
+                      key={dep.id}
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        padding: '8px 10px',
+                        border: '1px solid var(--color-border)',
+                        borderRadius: 6,
+                      }}
+                    >
+                      <div>
+                        <div style={{ fontSize: 14, fontWeight: 600 }}>
+                          {dep.time} WIB <span style={{ fontWeight: 400, color: 'var(--color-text-muted)' }}>· {dep.directionLabel}</span>
+                        </div>
+                        <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>{dep.humanText}</div>
+                      </div>
+                      <StatusPill status={dep.status} />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Full day schedule, collapsible, grouped by hour to stay compact */}
+          {selectedRoute.hasDirections && fullDayGrouped && (
+            <details>
+              <summary style={{ cursor: 'pointer', fontSize: 13, color: 'var(--color-primary)', marginBottom: 8 }}>
+                Full day schedule
+              </summary>
+              {(['outbound', 'inbound'] as const).map((dir) => {
+                const hours = fullDayGrouped[dir];
+                const label = dir === 'outbound' ? `Toward ${selectedRoute.destinationLabel}` : `Toward ${selectedRoute.originLabel}`;
+                return (
+                  <div key={dir} style={{ marginTop: 10 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 4 }}>{label}</div>
+                    {Object.keys(hours)
+                      .sort()
+                      .map((hour) => (
+                        <div key={hour} style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 2 }}>
+                          <strong style={{ color: 'var(--color-text)' }}>{hour}:00</strong> — {hours[hour].map((e) => e.time.slice(3)).join(', ')}
+                        </div>
+                      ))}
+                  </div>
+                );
+              })}
+            </details>
+          )}
+        </div>
+      )}
     </div>
   );
 }
 
-// --- 3. HELPER COMPONENTS ---
-function StatusPill({ status }: { status: 'on_time' | 'delayed' | 'cancelled' }) {
-  const styles: Record<string, { bg: string, text: string, label: string }> = {
-    on_time: { bg: '#E3FCEF', text: '#006644', label: 'On Time' },
-    delayed: { bg: '#FFFAE6', text: '#FF8B00', label: 'Delayed' },
-    cancelled: { bg: '#FFEBE6', text: '#BF2600', label: 'Cancelled' },
-  };
-  
-  const current = styles[status];
-
+function TypeTab({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
   return (
-    <span style={{ 
-      fontSize: 12, 
-      fontWeight: 700, 
-      backgroundColor: current.bg, 
-      color: current.text,
-      padding: '4px 10px',
-      borderRadius: 12
-    }}>
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        padding: '8px 16px',
+        border: 'none',
+        borderRadius: 20,
+        cursor: 'pointer',
+        fontWeight: 600,
+        whiteSpace: 'nowrap',
+        fontSize: 13,
+        background: active ? 'var(--color-primary)' : 'var(--color-surface-raised)',
+        color: active ? '#fff' : 'var(--color-text)',
+        border: '1px solid var(--color-border)',
+      }}
+    >
+      {label}
+    </button>
+  );
+}
+
+function StatusPill({ status }: { status: DepartureStatus }) {
+  const styles: Record<DepartureStatus, { bg: string; text: string; label: string }> = {
+    on_time: { bg: 'rgba(0,166,90,0.15)', text: '#00A65A', label: 'On time' },
+    delayed: { bg: 'rgba(255,171,0,0.15)', text: '#FFAB00', label: 'Delayed' },
+    cancelled: { bg: 'rgba(222,53,11,0.15)', text: '#DE350B', label: 'Cancelled' },
+  };
+  const current = styles[status];
+  return (
+    <span
+      style={{
+        fontSize: 11,
+        fontWeight: 700,
+        backgroundColor: current.bg,
+        color: current.text,
+        padding: '4px 10px',
+        borderRadius: 12,
+        whiteSpace: 'nowrap',
+      }}
+    >
       {current.label}
     </span>
   );
