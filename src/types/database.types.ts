@@ -2,7 +2,18 @@
 // Regenerate with `supabase gen types typescript` once the project is linked
 // for a fully generated, always-in-sync version.
 
-export type TransportMode = 'walk' | 'bus' | 'transjakarta' | 'mrt' | 'krl' | 'lrt' | 'ojek' | 'other';
+export type TransportMode =
+  | 'walk'
+  | 'bus'
+  | 'transjakarta'
+  | 'mrt'
+  | 'krl'
+  | 'lrt'
+  | 'train'
+  | 'airport_rail'
+  | 'ferry'
+  | 'ojek'
+  | 'other';
 export type PlaceCategory = 'home' | 'school' | 'workplace' | 'custom';
 export type RouteType = 'cheapest' | 'fastest' | 'balanced';
 export type TravelPeriod = 'daily' | 'weekly' | 'monthly';

@@ -114,6 +114,14 @@ export default function RouteDetail() {
         ))}
       </div>
 
+      <button
+        className="btn btn-secondary"
+        style={{ width: '100%', marginTop: 8 }}
+        onClick={() => navigate('/map', { state: { option, origin, destination } })}
+      >
+        View route on map
+      </button>
+
       <button className="btn btn-primary" style={{ width: '100%', marginTop: 8 }} onClick={() => setShowGpsModal(true)}>
         Track this journey live
       </button>

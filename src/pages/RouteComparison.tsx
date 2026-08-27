@@ -4,10 +4,11 @@ import PlaceSearchInput from '@/components/PlaceSearchInput';
 import RouteOptionCard from '@/components/RouteOptionCard';
 import { getCurrentPosition } from '@/services/locationService';
 import { reverseGeocode } from '@/services/geocodingService';
-import { planAndCompareRoutes, saveRouteSearch } from '@/services/routeService';
+import { planAndCompareRoutes, saveRouteSearch, type LogicalRouteComparisonResult, type LogicalRouteOption, type RouteCategory } from '@/services/routeService';
 import { useAuth } from '@/contexts/AuthContext';
 import type { PlaceResult } from '@/types/domain.types';
-import type { RouteComparisonResult, RouteOption } from '@/types/domain.types';
+
+const CATEGORY_ORDER: RouteCategory[] = ['efficient', 'cheapest', 'hurry'];
 
 export default function RouteComparison() {
   const location = useLocation();
@@ -17,7 +18,7 @@ export default function RouteComparison() {
 
   const [origin, setOrigin] = useState<PlaceResult | null>(null);
   const [destination, setDestination] = useState<PlaceResult | null>(initialDestination);
-  const [result, setResult] = useState<RouteComparisonResult | null>(null);
+  const [result, setResult] = useState<LogicalRouteComparisonResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [usingCurrentLocation, setUsingCurrentLocation] = useState(false);
@@ -28,7 +29,13 @@ export default function RouteComparison() {
       try {
         const point = await getCurrentPosition();
         const place = await reverseGeocode(point.lat, point.lng);
-        setOrigin(place ?? { ...point, label: 'Current location', address: 'Current location' });
+        // Use the functional form and only fill in origin if the user
+        // hasn't already picked one manually while this was in flight —
+        // getCurrentPosition + reverseGeocode can take several seconds,
+        // long enough for a manual selection to land first. Without this
+        // check, a slow GPS/geocode response silently overwrites whatever
+        // the user just typed and selected.
+        setOrigin((current) => current ?? place ?? { ...point, label: 'Current location', address: 'Current location' });
       } catch {
         // Silent: user can still type an origin manually.
       } finally {
@@ -59,7 +66,7 @@ export default function RouteComparison() {
     }
   }
 
-  async function handleSelect(option: RouteOption) {
+  async function handleSelect(option: LogicalRouteOption) {
     if (!origin || !destination) return;
     try {
       const saved = user ? await saveRouteSearch(user.id, origin, destination, option) : null;
@@ -73,7 +80,7 @@ export default function RouteComparison() {
     <div className="container">
       <h1>Compare routes</h1>
       <p style={{ color: 'var(--color-text-muted)', marginTop: 0 }}>
-        We rank options by cost, speed, and a balanced score — no guessing which card means what.
+        Three ways to get there: the efficient pick, the cheapest, and the fastest if you're in a hurry.
       </p>
 
       <div className="card" style={{ marginBottom: 20, display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -92,16 +99,11 @@ export default function RouteComparison() {
 
       {result && result.options.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          {['cheapest', 'fastest', 'moderate'].map((cat) => {
+          {CATEGORY_ORDER.map((cat) => {
             const opt = result.options.find((o) => o.category === cat);
             if (!opt) return null;
             return <RouteOptionCard key={opt.id} option={opt} onSelect={() => handleSelect(opt)} />;
           })}
-          {result.options
-            .filter((o) => !o.category)
-            .map((opt) => (
-              <RouteOptionCard key={opt.id} option={opt} onSelect={() => handleSelect(opt)} />
-            ))}
         </div>
       )}
 

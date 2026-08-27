@@ -30,6 +30,15 @@ export default function PlaceSearchInput({ placeholder = 'Search a place…', va
     }, 450)
   ).current;
 
+  // Keep the visible text in sync when `value` changes from OUTSIDE this
+  // component (e.g. the parent's geolocation effect setting an origin, or
+  // a route being loaded/reset). Without this, `query` only ever reflects
+  // its initial mount value and silently drifts from the real selected
+  // place once anything external changes it.
+  useEffect(() => {
+    setQuery(value ?? '');
+  }, [value]);
+
   useEffect(() => {
     if (query.trim().length >= 2) {
       debouncedSearch(query);

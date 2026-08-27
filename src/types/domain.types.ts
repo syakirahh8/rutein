@@ -21,6 +21,12 @@ export interface RouteLeg {
   estimatedCostIdr: number;
   isTransfer: boolean;
   instructions?: string;
+  /** Ordered lat/lng points describing this leg's actual path (routed/snapped
+   * polyline for walk/ojek/road-based transit, straight line for fixed-rail
+   * legs where real track geometry isn't available). Always at least [from, to]. */
+  geometry?: GeoPoint[];
+  /** True when `geometry` is a straight-line approximation, not a routed path. */
+  geometryIsEstimate?: boolean;
 }
 
 export interface RouteOption {

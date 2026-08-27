@@ -1,18 +1,27 @@
-import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
-import { setWorkerUrl } from 'maplibre-gl';
+// Merged map page — MapLibre (clean, smooth) base + transport-stop layer,
+// filter panel, and optional street view from the old Leaflet page.
+import React, { useEffect, useRef, useState, useCallback, useMemo, Suspense, lazy } from 'react';
+import { setWorkerUrl, type LngLatBounds } from 'maplibre-gl';
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 setWorkerUrl(workerUrl);
 
 import Map, { Marker, Popup, Source, Layer, NavigationControl, type MapRef, type MapLayerMouseEvent } from 'react-map-gl/maplibre';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import PlaceSearchInput from '@/components/PlaceSearchInput';
+import TransportFilter from '@/components/TransportFilter';
+import TransportMarkerIcon, { LegModeMarker, LEG_MODE_COLOR } from '@/components/transportMarkerIcon';
 import { getMapStyle, walkingDirections, drivingDirections, type DirectionsResult } from '@/services/mapService';
 import { getCurrentPosition, isGeolocationSupported, distanceMeters } from '@/services/locationService';
 import { findNearbyStops } from '@/services/transportService';
 import { reverseGeocode } from '@/services/geocodingService';
-import type { PlaceResult, GeoPoint } from '@/types/domain.types';
+import { INDONESIA_TRANSPORT_DATA, TRANSPORT_TYPE_LABELS, type IndonesiaTransportType, type IndonesiaTransportLocation } from '@/data/indonesiaTransportData';
+import type { PlaceResult, GeoPoint, RouteOption, RouteLeg } from '@/types/domain.types';
 import type { TransportStop } from '@/types/database.types';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
+
+// mapillary-js is a large WebGL lib only needed once the street view modal
+// actually opens — lazy-load it so it stays out of the main map bundle.
+const StreetViewModal = lazy(() => import('@/components/StreetViewModal'));
 
 const JAKARTA_CENTER: GeoPoint = { lat: -6.2088, lng: 106.8456 };
 type TravelMode = 'walk' | 'ojek';
@@ -33,6 +42,13 @@ const SATELLITE_STYLE = {
   },
   layers: [{ id: 'esri-satellite-layer', type: 'raster' as const, source: 'esri-satellite' }],
 };
+
+const ALL_TRANSPORT_TYPES = Object.keys(TRANSPORT_TYPE_LABELS) as IndonesiaTransportType[];
+const MAX_RENDERED_MARKERS = 200; // safety cap; viewport filtering normally keeps this far lower
+
+// A click on the map "confirms" the previous selection (opens street view)
+// only if it lands within this distance of it — otherwise it's a new pick.
+const STREET_VIEW_CONFIRM_RADIUS_M = 40;
 
 function formatDuration(seconds: number): string {
   const mins = Math.round(seconds / 60);
@@ -79,8 +95,16 @@ function getRouteMidpoint(geometry: GeoPoint[]): GeoPoint | null {
   return geometry[geometry.length - 1];
 }
 
+// Returns a leg's actual path as [lng, lat] pairs for GeoJSON, falling back
+// to a straight line between its endpoints if no geometry was captured.
+function legCoordinates(leg: RouteLeg): [number, number][] {
+  const points = leg.geometry && leg.geometry.length >= 2 ? leg.geometry : [leg.from, leg.to];
+  return points.map((p) => [p.lng, p.lat]);
+}
+
 export default function MapPage() {
   const navigate = useNavigate();
+  const routerLocation = useLocation();
   const mapRef = useRef<MapRef>(null);
   const [userLocation, setUserLocation] = useState<GeoPoint | null>(null);
   const [selectedPlace, setSelectedPlace] = useState<PlaceResult | null>(null);
@@ -93,6 +117,25 @@ export default function MapPage() {
   const [loadingDirections, setLoadingDirections] = useState(false);
   const [directionsError, setDirectionsError] = useState<string | null>(null);
   const [popupTarget, setPopupTarget] = useState<'user' | 'place' | null>(null);
+
+  // Full multi-leg itinerary, when the user arrived here from "View route
+  // on map" on a Route Detail screen. Takes over route rendering entirely
+  // — see the conditional split further down between this and the plain
+  // single-destination `directions` flow above.
+  const itineraryOption = (routerLocation.state as { option?: RouteOption } | null)?.option ?? null;
+
+  // Transport marker layer state
+  const [activeTypes, setActiveTypes] = useState<Set<IndonesiaTransportType>>(new Set(ALL_TRANSPORT_TYPES));
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [mapBounds, setMapBounds] = useState<LngLatBounds | null>(null);
+  const [hoveredStopId, setHoveredStopId] = useState<string | null>(null);
+
+  // Two-click street view state (click a spot to select it, click it again
+  // to look around at street level — ported from the old page, but now it
+  // just layers on top of the normal select/route flow instead of fighting it).
+  const [pendingStreetViewPoint, setPendingStreetViewPoint] = useState<GeoPoint | null>(null);
+  const [streetViewPoint, setStreetViewPoint] = useState<GeoPoint | null>(null);
+  const [streetViewLabel, setStreetViewLabel] = useState<string | undefined>(undefined);
 
   const [viewState, setViewState] = useState({
     latitude: JAKARTA_CENTER.lat,
@@ -121,12 +164,47 @@ export default function MapPage() {
   }, [selectedPlace, userLocation]);
 
   useEffect(() => {
+    // Skip the "fly to selected/user point" behavior when a full itinerary
+    // is loaded — that case gets its own fitBounds effect below, over the
+    // whole route rather than a single point.
+    if (itineraryOption) return;
     const point = selectedPlace ?? userLocation;
     if (!point || !mapRef.current) return;
     mapRef.current.flyTo({ center: [point.lng, point.lat], zoom: 15, duration: 800 });
-  }, [selectedPlace, userLocation]);
+  }, [selectedPlace, userLocation, itineraryOption]);
+
+  // Fit the map to the entire multi-leg itinerary once it (and the map) are ready.
+  useEffect(() => {
+    if (!itineraryOption || !mapRef.current) return;
+    const allPoints = itineraryOption.legs.flatMap((leg) => legCoordinates(leg));
+    if (allPoints.length === 0) return;
+
+    let minLng = allPoints[0][0];
+    let maxLng = allPoints[0][0];
+    let minLat = allPoints[0][1];
+    let maxLat = allPoints[0][1];
+    for (const [lng, lat] of allPoints) {
+      minLng = Math.min(minLng, lng);
+      maxLng = Math.max(maxLng, lng);
+      minLat = Math.min(minLat, lat);
+      maxLat = Math.max(maxLat, lat);
+    }
+    mapRef.current.fitBounds(
+      [
+        [minLng, minLat],
+        [maxLng, maxLat],
+      ],
+      { padding: 60, duration: 800 }
+    );
+  }, [itineraryOption]);
 
   useEffect(() => {
+    if (itineraryOption) {
+      // A full itinerary already carries its own real per-leg routing —
+      // no need for the single-destination walk/ojek fetch below.
+      setDirections(null);
+      return;
+    }
     if (!userLocation || !selectedPlace) {
       setDirections(null);
       return;
@@ -151,13 +229,59 @@ export default function MapPage() {
     return () => {
       cancelled = true;
     };
-  }, [userLocation, selectedPlace, travelMode]);
+  }, [userLocation, selectedPlace, travelMode, itineraryOption]);
+
+  // Refresh the transport-marker viewport filter whenever the map settles.
+  const handleMoveEnd = useCallback(() => {
+    const map = mapRef.current?.getMap();
+    if (map) setMapBounds(map.getBounds());
+  }, []);
+
+  useEffect(() => {
+    // Capture bounds once on first mount too, so markers show up before
+    // the user ever pans/zooms.
+    const map = mapRef.current?.getMap();
+    if (map) setMapBounds(map.getBounds());
+  }, []);
+
+  const visibleTransportLocations = useMemo(() => {
+    if (!mapBounds) return [];
+    const filtered = INDONESIA_TRANSPORT_DATA.filter(
+      (t) => activeTypes.has(t.type) && mapBounds.contains([t.longitude, t.latitude])
+    );
+    return filtered.length > MAX_RENDERED_MARKERS ? filtered.slice(0, MAX_RENDERED_MARKERS) : filtered;
+  }, [mapBounds, activeTypes]);
+
+  function toggleType(type: IndonesiaTransportType) {
+    setActiveTypes((prev) => {
+      const next = new Set(prev);
+      if (next.has(type)) next.delete(type);
+      else next.add(type);
+      return next;
+    });
+  }
 
   const handleMapClick = useCallback(async (e: MapLayerMouseEvent) => {
     const { lat, lng } = e.lngLat;
+    const point: GeoPoint = { lat, lng };
+
+    // Second click near the pending selection: confirm and open street view
+    // instead of re-selecting/re-geocoding the same spot.
+    if (pendingStreetViewPoint && distanceMeters(point, pendingStreetViewPoint) <= STREET_VIEW_CONFIRM_RADIUS_M) {
+      setStreetViewLabel(selectedPlace?.label);
+      setStreetViewPoint(pendingStreetViewPoint);
+      return;
+    }
+
+    setPendingStreetViewPoint(point);
     const place = await reverseGeocode(lat, lng);
     setSelectedPlace(place ?? { lat, lng, label: 'Selected location', address: `${lat.toFixed(5)}, ${lng.toFixed(5)}` });
-  }, []);
+  }, [pendingStreetViewPoint, selectedPlace]);
+
+  async function handleSearchSelect(place: PlaceResult) {
+    setSelectedPlace(place);
+    setPendingStreetViewPoint({ lat: place.lat, lng: place.lng });
+  }
 
   const routeGeoJson = directions
     ? {
@@ -180,9 +304,17 @@ export default function MapPage() {
   return (
     <div className="container" style={{ paddingBottom: 24 }}>
       <h1>Map</h1>
-      <div className="card" style={{ marginBottom: 16 }}>
-        <PlaceSearchInput placeholder="Search a place or address…" onSelect={setSelectedPlace} />
-      </div>
+      <p style={{ color: 'var(--color-text-muted)', marginTop: 0, fontSize: 13 }}>
+        {itineraryOption
+          ? 'Showing your planned route below — walk, transit, and ojek legs are color-coded.'
+          : 'Click a spot once to select it, click it again to look around at street level.'}
+      </p>
+
+      {!itineraryOption && (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <PlaceSearchInput placeholder="Search a place or address…" onSelect={handleSearchSelect} />
+        </div>
+      )}
 
       {locationError && (
         <div className="card" style={{ marginBottom: 16, borderColor: 'var(--color-amber)' }}>
@@ -191,35 +323,43 @@ export default function MapPage() {
         </div>
       )}
 
-      <div style={{ position: 'relative', height: 480, borderRadius: 14, overflow: 'hidden', border: '1px solid var(--color-border)' }}>
-        <button
-          className="btn btn-secondary"
-          style={{
-            position: 'absolute',
-            top: 10,
-            left: 10,
-            zIndex: 1,
-            padding: '6px 12px',
-            fontSize: 12,
-            fontWeight: 600,
-            boxShadow: '0 2px 6px rgba(0,0,0,0.2)',
-          }}
-          onClick={() => setBaseLayer((prev) => (prev === 'street' ? 'satellite' : 'street'))}
-        >
-          {baseLayer === 'street' ? '🛰️ Satellite' : '🗺️ Streets'}
-        </button>
+      <div style={{ position: 'relative', height: 500, borderRadius: 14, overflow: 'hidden', border: '1px solid var(--color-border)' }}>
+        <div style={{ position: 'absolute', top: 10, left: 10, zIndex: 1, display: 'flex', gap: 8 }}>
+          <button
+            className="btn btn-secondary"
+            style={mapOverlayBtn}
+            onClick={() => setBaseLayer((prev) => (prev === 'street' ? 'satellite' : 'street'))}
+          >
+            {baseLayer === 'street' ? '🛰️ Satellite' : '🗺️ Streets'}
+          </button>
+
+          <button className="btn btn-secondary" style={mapOverlayBtn} onClick={() => setFilterOpen((v) => !v)}>
+            🚏 Transport ({activeTypes.size}/{ALL_TRANSPORT_TYPES.length})
+          </button>
+        </div>
+
+        <TransportFilter
+          open={filterOpen}
+          activeTypes={activeTypes}
+          onToggle={toggleType}
+          onShowAll={() => setActiveTypes(new Set(ALL_TRANSPORT_TYPES))}
+          onClose={() => setFilterOpen(false)}
+        />
 
         <Map
           ref={mapRef}
           {...viewState}
           onMove={(evt) => setViewState(evt.viewState)}
+          onMoveEnd={handleMoveEnd}
           onClick={handleMapClick}
           mapStyle={baseLayer === 'satellite' ? SATELLITE_STYLE : getMapStyle()}
           style={{ width: '100%', height: '100%' }}
         >
           <NavigationControl position="top-right" showCompass={false} />
 
-          {routeGeoJson && (
+          {/* Single-destination walk/ojek route (search-driven flow). Hidden
+              entirely when a full multi-leg itinerary is loaded instead. */}
+          {!itineraryOption && routeGeoJson && (
             <Source id="route" type="geojson" data={routeGeoJson}>
               <Layer
                 id="route-line"
@@ -235,10 +375,7 @@ export default function MapPage() {
             </Source>
           )}
 
-          {/* Duration label pinned to the route's geographic midpoint —
-              a Marker (not a screen-fixed overlay) so it tracks the line
-              correctly as the map pans/zooms. */}
-          {routeMidpoint && directions && (
+          {!itineraryOption && routeMidpoint && directions && (
             <Marker latitude={routeMidpoint.lat} longitude={routeMidpoint.lng} anchor="center">
               <div
                 style={{
@@ -258,6 +395,67 @@ export default function MapPage() {
               </div>
             </Marker>
           )}
+
+          {/* Full multi-leg itinerary — each leg gets its own accurate
+              polyline, colored + dashed by mode, with an icon marker at its
+              midpoint (skipped for plain walking legs to avoid clutter) and
+              a small dot marking the transfer/board/alight point between
+              consecutive legs. */}
+          {itineraryOption &&
+            itineraryOption.legs.map((leg, i) => {
+              const coords = legCoordinates(leg);
+              const color = LEG_MODE_COLOR[leg.mode] ?? LEG_MODE_COLOR.other;
+              const isDashed = leg.mode === 'walk' || !!leg.geometryIsEstimate;
+              const midIdx = Math.floor(coords.length / 2);
+              const mid = coords[midIdx];
+              const boundaryPoint = coords[0];
+
+              return (
+                <React.Fragment key={i}>
+                  <Source
+                    id={`leg-${i}`}
+                    type="geojson"
+                    data={{
+                      type: 'Feature',
+                      properties: {},
+                      geometry: { type: 'LineString', coordinates: coords },
+                    }}
+                  >
+                    <Layer
+                      id={`leg-line-${i}`}
+                      type="line"
+                      layout={{ 'line-join': 'round', 'line-cap': 'round' }}
+                      paint={{
+                        'line-color': color,
+                        'line-width': 5,
+                        'line-opacity': 0.9,
+                        'line-dasharray': isDashed ? [2, 2] : [1, 0],
+                      }}
+                    />
+                  </Source>
+
+                  {leg.mode !== 'walk' && mid && (
+                    <Marker longitude={mid[0]} latitude={mid[1]} anchor="center">
+                      <LegModeMarker mode={leg.mode} />
+                    </Marker>
+                  )}
+
+                  {i > 0 && boundaryPoint && (
+                    <Marker longitude={boundaryPoint[0]} latitude={boundaryPoint[1]} anchor="center">
+                      <div
+                        style={{
+                          width: 10,
+                          height: 10,
+                          borderRadius: '50%',
+                          background: '#fff',
+                          border: `3px solid ${color}`,
+                        }}
+                      />
+                    </Marker>
+                  )}
+                </React.Fragment>
+              );
+            })}
 
           {userLocation && (
             <Marker
@@ -280,7 +478,7 @@ export default function MapPage() {
             </Popup>
           )}
 
-          {selectedPlace && (
+          {!itineraryOption && selectedPlace && (
             <Marker
               latitude={selectedPlace.lat}
               longitude={selectedPlace.lng}
@@ -292,21 +490,93 @@ export default function MapPage() {
               <div style={{ width: 16, height: 16, borderRadius: '50%', background: '#F97316', border: '2px solid #0B1220' }} />
             </Marker>
           )}
-          {selectedPlace && popupTarget === 'place' && (
+          {!itineraryOption && selectedPlace && popupTarget === 'place' && (
             <Popup latitude={selectedPlace.lat} longitude={selectedPlace.lng} onClose={() => setPopupTarget(null)} closeButton={false}>
               {selectedPlace.label}
             </Popup>
           )}
 
-          {nearbyStops.map((stop) => (
-            <Marker key={stop.id} latitude={stop.latitude} longitude={stop.longitude}>
-              <div style={{ width: 12, height: 12, borderRadius: '50%', background: '#2DD4BF', border: '2px solid #0B1220' }} title={stop.stop_name} />
+          {/* Live transport network (transjakarta, MRT, LRT, KRL, etc.) —
+              viewport-filtered against the static curated dataset. */}
+          {visibleTransportLocations.map((stop: IndonesiaTransportLocation) => (
+            <Marker
+              key={stop.id}
+              latitude={stop.latitude}
+              longitude={stop.longitude}
+              onClick={(e) => e.originalEvent.stopPropagation()}
+            >
+              <div
+                onMouseEnter={() => setHoveredStopId(stop.id)}
+                onMouseLeave={() => setHoveredStopId((id) => (id === stop.id ? null : id))}
+              >
+                <TransportMarkerIcon type={stop.type} highlighted={hoveredStopId === stop.id} />
+              </div>
             </Marker>
           ))}
+          {hoveredStopId && (() => {
+            const stop = visibleTransportLocations.find((s) => s.id === hoveredStopId);
+            if (!stop) return null;
+            return (
+              <Popup
+                latitude={stop.latitude}
+                longitude={stop.longitude}
+                closeButton={false}
+                closeOnClick={false}
+                offset={20}
+                anchor="bottom"
+              >
+                <div style={{ minWidth: 160 }}>
+                  <strong>{stop.name}</strong>
+                  <div style={{ fontSize: 12, color: '#555', marginTop: 4 }}>{TRANSPORT_TYPE_LABELS[stop.type]}</div>
+                  {stop.line && <div style={{ fontSize: 12, color: '#555' }}>{stop.line}</div>}
+                  <div style={{ fontSize: 12, color: '#555' }}>{stop.city}, {stop.province}</div>
+                </div>
+              </Popup>
+            );
+          })()}
+
+          {!itineraryOption && pendingStreetViewPoint &&
+            (!selectedPlace || distanceMeters(pendingStreetViewPoint, selectedPlace) > 1) && (
+              <Marker latitude={pendingStreetViewPoint.lat} longitude={pendingStreetViewPoint.lng}>
+                <div
+                  title="Click again for street view"
+                  style={{
+                    width: 18,
+                    height: 18,
+                    borderRadius: '50%',
+                    background: '#F97316',
+                    border: '3px solid #0B1220',
+                    boxShadow: '0 0 0 6px rgba(249,115,22,0.25)',
+                  }}
+                />
+              </Marker>
+          )}
         </Map>
       </div>
 
-      {userLocation && selectedPlace && (
+      {itineraryOption && (
+        <div className="card" style={{ marginTop: 16 }}>
+          <h3 style={{ margin: 0, fontSize: 15 }}>Route legend</h3>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginTop: 10 }}>
+            {itineraryOption.modesUsed.map((mode) => (
+              <div key={mode} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
+                <span
+                  style={{
+                    width: 18,
+                    height: 4,
+                    borderRadius: 2,
+                    background: LEG_MODE_COLOR[mode] ?? LEG_MODE_COLOR.other,
+                    display: 'inline-block',
+                  }}
+                />
+                <span style={{ textTransform: 'capitalize' }}>{mode}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {!itineraryOption && userLocation && selectedPlace && (
         <div className="card" style={{ marginTop: 16 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
             <h3 style={{ margin: 0, fontSize: 15 }}>Route to {selectedPlace.label}</h3>
@@ -344,31 +614,62 @@ export default function MapPage() {
         </div>
       )}
 
-      <div className="card" style={{ marginTop: 16 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h3 style={{ margin: 0, fontSize: 15 }}>Nearby transit stops</h3>
-          {loadingStops && <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>Searching…</span>}
+      {!itineraryOption && (
+        <div className="card" style={{ marginTop: 16 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h3 style={{ margin: 0, fontSize: 15 }}>Nearby transit stops</h3>
+            {loadingStops && <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>Searching…</span>}
+          </div>
+          {!loadingStops && nearbyStops.length === 0 && (
+            <p style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>
+              No stops found within 1.2km. Click anywhere on the map to check a different spot.
+            </p>
+          )}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 10 }}>
+            {nearbyStops.map((stop) => (
+              <div key={stop.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                <span>{stop.stop_name}</span>
+                <span style={{ color: 'var(--color-text-muted)' }}>{stop.is_transfer_point ? 'Transfer point' : 'Stop'}</span>
+              </div>
+            ))}
+          </div>
         </div>
-        {!loadingStops && nearbyStops.length === 0 && (
-          <p style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>
-            No stops found within 1.2km. Click anywhere on the map to check a different spot.
-          </p>
-        )}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 10 }}>
-          {nearbyStops.map((stop) => (
-            <div key={stop.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-              <span>{stop.stop_name}</span>
-              <span style={{ color: 'var(--color-text-muted)' }}>{stop.is_transfer_point ? 'Transfer point' : 'Stop'}</span>
-            </div>
-          ))}
-        </div>
-      </div>
+      )}
 
-      {selectedPlace && (
+      {!itineraryOption && selectedPlace && (
         <button className="btn btn-primary" style={{ marginTop: 16, width: '100%' }} onClick={() => navigate('/routes', { state: { destination: selectedPlace } })}>
           Plan a route to {selectedPlace.label}
         </button>
       )}
+
+      {streetViewPoint && (
+        <Suspense fallback={<div style={overlayLoadingFallback}>Loading street view…</div>}>
+          <StreetViewModal
+            point={streetViewPoint}
+            locationLabel={streetViewLabel}
+            onClose={() => setStreetViewPoint(null)}
+          />
+        </Suspense>
+      )}
     </div>
   );
 }
+
+const mapOverlayBtn: React.CSSProperties = {
+  padding: '6px 12px',
+  fontSize: 12,
+  fontWeight: 600,
+  boxShadow: '0 2px 6px rgba(0,0,0,0.2)',
+};
+
+const overlayLoadingFallback: React.CSSProperties = {
+  position: 'fixed',
+  inset: 0,
+  background: 'rgba(0,0,0,0.75)',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  color: '#fff',
+  fontSize: 14,
+  zIndex: 200,
+};
