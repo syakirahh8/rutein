@@ -1,25 +1,57 @@
 import { supabase } from '@/lib/supabaseClient';
 import type { GeoPoint } from '@/types/domain.types';
-import type { Disruption, UserPreferences } from '@/types/database.types';
+import type {
+  Disruption,
+  UserPreferences,
+} from '@/types/database.types';
 
-/**
- * Confused Mode — AI chat is NOT implemented yet (per project scope).
- * This service defines the contract the frontend already talks to, so
- * wiring in a real LLM later is a one-file change inside the Edge Function
- * (supabase/functions/confused-mode/index.ts) — no frontend changes needed.
- *
- * Architecture:
- *   Frontend (ConfusedModeChat component)
- *     -> confusedModeService.sendMessage()
- *     -> Supabase Edge Function "confused-mode"
- *     -> [future] LLM provider
- */
+export interface ConfusedModeLocation {
+  latitude: number;
+  longitude: number;
+  accuracy?: number;
+  address?: string;
+}
+
+export interface ConfusedModeMapPlace {
+  name: string;
+  location: GeoPoint;
+}
+
+export interface ConfusedModeDestination {
+  name?: string;
+  location: GeoPoint;
+}
+
+export interface NearbyTransport {
+  type: string;
+  name: string;
+  distance?: number;
+  latitude?: number;
+  longitude?: number;
+}
 
 export interface ConfusedModeContext {
-  currentLocation?: GeoPoint;
-  destination?: GeoPoint;
+  currentLocation?: ConfusedModeLocation;
+
+  destination?: unknown;
+
+  selectedMapPlace?: unknown;
+
+  nearbyPlaces?: unknown[];
+
+  nearbyTransport?: unknown[];
+
+  currentRoute?: unknown;
+
   availableDisruptions?: Disruption[];
+
   preferences?: UserPreferences | null;
+
+  mapProvider?: string;
+
+  locationSource?: string;
+
+  nearbySearchRadiusMeters?: number;
 }
 
 export interface ConfusedModeMessage {
@@ -35,26 +67,58 @@ export const SUGGESTED_EMERGENCY_QUESTIONS: string[] = [
   "I'm lost.",
 ];
 
-/**
- * Sends a message + context to the confused-mode Edge Function.
- * Currently the Edge Function returns a NOT_IMPLEMENTED placeholder —
- * this call is safe to wire into the UI now and will "just work" once
- * the Edge Function is updated to call a real LLM provider.
- */
 export async function sendConfusedModeMessage(
   messages: ConfusedModeMessage[],
   context: ConfusedModeContext
-): Promise<{ reply: string; implemented: boolean }> {
-  const { data, error } = await supabase.functions.invoke('confused-mode', {
-    body: { messages, context },
-  });
+): Promise<{
+  reply: string;
+  implemented: boolean;
+}> {
+  const { data, error } =
+    await supabase.functions.invoke(
+      'confused-mode',
+      {
+        body: {
+          messages,
+          context,
+        },
+      }
+    );
 
   if (error) {
-    return {
-      reply: "Confused Mode's assistant isn't connected yet. This screen is ready for it — an LLM just needs to be wired into the confused-mode Edge Function.",
-      implemented: false,
-    };
+    console.error(
+      'Confused Mode error:',
+      error
+    );
+
+    try {
+      const errorData =
+        await error.context.json();
+
+      return {
+        reply:
+          errorData.reply ??
+          errorData.error ??
+          'The AI assistant encountered a server error.',
+
+        implemented: false,
+      };
+    } catch {
+      return {
+        reply:
+          'The AI assistant encountered a server error.',
+
+        implemented: false,
+      };
+    }
   }
 
-  return { reply: data.reply, implemented: data.implemented ?? false };
+  return {
+    reply:
+      data?.reply ??
+      'No response received from the assistant.',
+
+    implemented:
+      data?.implemented ?? true,
+  };
 }

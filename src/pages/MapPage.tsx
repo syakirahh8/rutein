@@ -7,6 +7,8 @@ setWorkerUrl(workerUrl);
 
 import Map, { Marker, Popup, Source, Layer, NavigationControl, type MapRef, type MapLayerMouseEvent } from 'react-map-gl/maplibre';
 import 'maplibre-gl/dist/maplibre-gl.css';
+import { AlertTriangle } from 'lucide-react';
+
 import PlaceSearchInput from '@/components/PlaceSearchInput';
 import TransportFilter from '@/components/TransportFilter';
 import TransportMarkerIcon, { LegModeMarker, LEG_MODE_COLOR } from '@/components/transportMarkerIcon';
@@ -15,6 +17,7 @@ import { getCurrentPosition, isGeolocationSupported, distanceMeters } from '@/se
 import { findNearbyStops } from '@/services/transportService';
 import { reverseGeocode } from '@/services/geocodingService';
 import { INDONESIA_TRANSPORT_DATA, TRANSPORT_TYPE_LABELS, type IndonesiaTransportType, type IndonesiaTransportLocation } from '@/data/indonesiaTransportData';
+import { INDONESIA_ROAD_DISRUPTIONS, SEVERITY_COLORS } from '@/data/indonesiaRoadDisruption';
 import type { PlaceResult, GeoPoint, RouteOption, RouteLeg } from '@/types/domain.types';
 import type { TransportStop } from '@/types/database.types';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -129,6 +132,9 @@ export default function MapPage() {
   const [filterOpen, setFilterOpen] = useState(false);
   const [mapBounds, setMapBounds] = useState<LngLatBounds | null>(null);
   const [hoveredStopId, setHoveredStopId] = useState<string | null>(null);
+  
+  // Disruption layer state
+  const [hoveredDisruptionId, setHoveredDisruptionId] = useState<string | null>(null);
 
   // Two-click street view state (click a spot to select it, click it again
   // to look around at street level — ported from the old page, but now it
@@ -251,6 +257,14 @@ export default function MapPage() {
     );
     return filtered.length > MAX_RENDERED_MARKERS ? filtered.slice(0, MAX_RENDERED_MARKERS) : filtered;
   }, [mapBounds, activeTypes]);
+
+  const activeRoadDisruptions = useMemo(() => {
+    if (!mapBounds) return [];
+    // Only show active disruptions that fall within the current map viewport bounds
+    return INDONESIA_ROAD_DISRUPTIONS.filter(
+      (d) => d.isActive && d.latitude && d.longitude && mapBounds.contains([d.longitude, d.latitude])
+    );
+  }, [mapBounds]);
 
   function toggleType(type: IndonesiaTransportType) {
     setActiveTypes((prev) => {
@@ -495,6 +509,76 @@ export default function MapPage() {
               {selectedPlace.label}
             </Popup>
           )}
+
+          {/* Road Disruptions Layer */}
+          {activeRoadDisruptions.map((d) => (
+            <Marker
+              key={d.id}
+              latitude={d.latitude!}
+              longitude={d.longitude!}
+              onClick={(e) => e.originalEvent.stopPropagation()}
+            >
+              <div
+                onMouseEnter={() => setHoveredDisruptionId(d.id)}
+                onMouseLeave={() => setHoveredDisruptionId((id) => (id === d.id ? null : id))}
+                style={{
+                  width: hoveredDisruptionId === d.id ? 30 : 24,
+                  height: hoveredDisruptionId === d.id ? 30 : 24,
+                  borderRadius: '50%',
+                  background: SEVERITY_COLORS[d.severity],
+                  border: '2px solid #0B1220',
+                  boxShadow: hoveredDisruptionId === d.id 
+                    ? '0 0 0 5px rgba(255,255,255,0.15), 0 2px 6px rgba(0,0,0,0.4)' 
+                    : '0 2px 5px rgba(0,0,0,0.35)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  transition: 'all 120ms ease',
+                }}
+              >
+                <AlertTriangle size={Math.round((hoveredDisruptionId === d.id ? 30 : 24) * 0.55)} color="#fff" strokeWidth={2.5} />
+              </div>
+            </Marker>
+          ))}
+          {hoveredDisruptionId && (() => {
+            const d = activeRoadDisruptions.find((s) => s.id === hoveredDisruptionId);
+            if (!d || !d.latitude || !d.longitude) return null;
+            return (
+              <Popup
+                latitude={d.latitude}
+                longitude={d.longitude}
+                closeButton={false}
+                closeOnClick={false}
+                offset={20}
+                anchor="bottom"
+                style={{ zIndex: 100 }}
+              >
+                <div style={{ minWidth: 160, maxWidth: 220 }}>
+                  <strong>{d.title}</strong>
+                  <div style={{ display: 'flex', gap: 6, marginTop: 6, marginBottom: 4 }}>
+                    <span style={{
+                      fontSize: 10,
+                      fontWeight: 700,
+                      textTransform: 'uppercase',
+                      padding: '2px 6px',
+                      borderRadius: 4,
+                      background: SEVERITY_COLORS[d.severity] + '22',
+                      color: SEVERITY_COLORS[d.severity],
+                    }}>
+                      {d.severity}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: 12, color: '#555', marginTop: 4 }}>
+                    {d.description}
+                  </div>
+                  <div style={{ fontSize: 11, color: '#888', marginTop: 6, textTransform: 'capitalize' }}>
+                    Type: {d.cause}
+                  </div>
+                </div>
+              </Popup>
+            );
+          })()}
 
           {/* Live transport network (transjakarta, MRT, LRT, KRL, etc.) —
               viewport-filtered against the static curated dataset. */}
