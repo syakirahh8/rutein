@@ -4,6 +4,7 @@ import { AuthProvider } from '@/contexts/AuthContext';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import NavBar from '@/components/NavBar';
 
+import LandingPage from '@/pages/LandingPage';
 import Login from '@/pages/Login';
 import Dashboard from '@/pages/Dashboard';
 import MapPage from '@/pages/MapPage';
@@ -31,8 +32,9 @@ export default function App() {
     <AuthProvider>
       <BrowserRouter>
         <Routes>
+          <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<Login />} />
-          <Route path="/" element={<AppLayout><Dashboard /></AppLayout>} />
+          <Route path="/dashboard" element={<AppLayout><Dashboard /></AppLayout>} />
           <Route path="/map" element={<AppLayout><MapPage /></AppLayout>} />
           <Route path="/routes" element={<AppLayout><RouteComparison /></AppLayout>} />
           <Route path="/routes/:searchId" element={<AppLayout><RouteDetail /></AppLayout>} />

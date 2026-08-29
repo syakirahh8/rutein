@@ -3,7 +3,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 
 const NAV_ITEMS = [
-  { to: '/', label: 'Dashboard', icon: '⌂' },
+  { to: '/dashboard', label: 'Dashboard', icon: '⌂' },
   { to: '/map', label: 'Map', icon: '⌖' },
   { to: '/routes', label: 'Routes', icon: '⇄' },
   { to: '/budget', label: 'Budget', icon: '฿' },

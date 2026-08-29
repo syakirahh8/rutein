@@ -1,21 +1,28 @@
 :root {
-  /* Rutein palette: transit-inspired — deep harbor blue (routes/trust),
-     warm signal amber (alerts/budget), clear teal (live/GPS). */
+  /* Rutein custom colors requested by user */
+  --color-main-red: #DA362A;
+  --color-bg-light: #FCF4ED;
+  --color-text-dark: #1E1E1E;
+
+  /* Rutein default palette */
   --color-bg: #0B1220;
   --color-surface: #121B2E;
   --color-surface-raised: #17233B;
   --color-border: #263452;
   --color-text: #EAF0FB;
   --color-text-muted: #90A0BE;
-  --color-primary: #3D8BFD;
-  --color-primary-dim: #2563C7;
+  --color-primary: #DA362A; /* Updated to custom main red */
+  --color-primary-dim: #B82A1F;
   --color-teal: #2DD4BF;
   --color-amber: #F5A623;
-  --color-danger: #F0475A;
+  --color-danger: #DA362A;
   --color-success: #34D399;
 
-  --font-display: 'Space Grotesk', 'Segoe UI', system-ui, sans-serif;
-  --font-body: 'Inter', 'Segoe UI', system-ui, sans-serif;
+  /* Fonts */
+  --font-jockey: 'Jockey One', cursive, sans-serif;
+  --font-inter: 'Inter', system-ui, sans-serif;
+  --font-display: var(--font-jockey);
+  --font-body: var(--font-inter);
 
   --radius-sm: 8px;
   --radius-md: 14px;
@@ -24,7 +31,27 @@
   --shadow-card: 0 8px 24px rgba(0, 0, 0, 0.28);
 }
 
+/* --- Font Utility Classes --- */
+.font-jockey {
+  font-family: var(--font-jockey);
+}
+.font-inter {
+  font-family: var(--font-inter);
+}
+
+/* --- Custom Color Utility Classes --- */
+.bg-main-red { background-color: var(--color-main-red); }
+.text-main-red { color: var(--color-main-red); }
+.border-main-red { border-color: var(--color-main-red); }
+
+.bg-light { background-color: var(--color-bg-light); }
+.text-dark { color: var(--color-text-dark); }
+
 * { box-sizing: border-box; }
+
+html {
+  scroll-behavior: smooth;
+}
 
 html, body, #root {
   height: 100%;
@@ -130,9 +157,199 @@ button {
 }
 
 @media (max-width: 860px) {
-  header nav:not(.mobile-nav) { display: none !important; }
-  .mobile-nav { display: flex !important; }
-}
-@media (min-width: 861px) {
   .mobile-nav { display: none !important; }
+}
+
+/* Landing Page Mobile & Tablet Responsive Utilities */
+@media (max-width: 768px) {
+  .static-header {
+    padding: 16px 20px 30px !important;
+  }
+  .hero-container {
+    padding-top: 40px !important;
+    padding-left: 20px !important;
+    padding-right: 20px !important;
+  }
+  .floating-nav-container {
+    top: 10px !important;
+  }
+  .floating-nav-pill {
+    padding: 3px 4px !important;
+    gap: 4px !important;
+  }
+  .floating-nav-btn {
+    padding: 5px 12px !important;
+    font-size: 14px !important;
+  }
+}
+
+/* --- Hero Grid Desktop vs Mobile Layout --- */
+.hero-grid {
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  gap: 40px;
+  align-items: center;
+}
+
+.hero-text-col {
+  order: 1;
+  text-align: left;
+}
+
+.hero-img-col {
+  order: 2;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.hero-img-col img {
+  width: 100%;
+  max-width: 520px;
+  height: auto;
+  object-fit: contain;
+}
+
+/* Mobile & Tablet Vertical Stack (<= 768px ONLY) */
+@media (max-width: 768px) {
+  .static-header {
+    padding: 16px 20px 0px !important;
+  }
+  .hero-container {
+    padding-top: 10px !important;
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+  }
+  .desktop-nav-pill {
+    display: none !important;
+  }
+  .hamburger-nav-group {
+    display: flex !important;
+    top: 14px !important;
+    right: 16px !important;
+  }
+  .hero-grid {
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+  }
+  .hero-img-col {
+    order: 1 !important; /* Image on top for Mobile */
+    display: flex;
+    justify-content: center;
+    margin-bottom: 12px !important; /* Natural moderate gap */
+    padding-right: 0 !important;
+    transform: translateX(10px) !important;
+  }
+  .hero-img-col img {
+    max-width: 320px !important; /* Constrain image size on tablet/mobile so it's not giant! */
+    width: 85% !important;
+    margin: 0 auto !important;
+  }
+  .hero-text-col {
+    order: 2 !important; /* Text below image for Mobile */
+    text-align: center !important;
+  }
+  .hero-text-col h1 {
+    margin-top: 0px !important;
+    font-size: clamp(26px, 5.5vw, 36px) !important; /* Fluidly scale heading text */
+    line-height: 1.12 !important;
+    margin-bottom: 12px !important;
+  }
+  .hero-text-col p {
+    font-size: 14px !important; /* Fluidly scale paragraph text */
+    line-height: 1.55 !important;
+    margin-bottom: 20px !important;
+    max-width: 440px !important;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .transport-cards-row {
+    justify-content: center !important;
+  }
+  .tagline-star-row {
+    justify-content: center !important;
+  }
+  .cara-kerja-desktop {
+    display: none !important;
+  }
+  .cara-kerja-mobile {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 20px !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .hero-img-col img {
+    max-width: 270px !important; /* Compact map size on phones */
+  }
+  .hero-text-col h1 {
+    font-size: 25px !important;
+  }
+  .hero-text-col p {
+    font-size: 13px !important;
+  }
+}
+
+/* Desktop & Tablet (> 768px): Full Centered Pill Navbar, 2-Column Hero (Text LEFT, Image RIGHT) */
+@media (min-width: 769px) {
+  .desktop-nav-pill {
+    display: flex !important;
+  }
+  .hamburger-nav-group {
+    display: none !important;
+  }
+  .hero-grid {
+    grid-template-columns: 1.1fr 0.9fr !important;
+    gap: 40px !important;
+  }
+  .hero-text-col {
+    order: 1 !important; /* Text on LEFT for Desktop */
+    text-align: left !important;
+  }
+  .hero-img-col {
+    order: 2 !important; /* Image on RIGHT for Desktop */
+    display: flex !important;
+    justify-content: flex-end !important;
+    transform: translateX(35px) !important; /* Shift hero image slightly right on desktop */
+  }
+  .cara-kerja-desktop {
+    display: block !important;
+  }
+  .cara-kerja-mobile {
+    display: none !important;
+  }
+}
+
+/* --- Section 2 ("Tentang") Cards Tablet & Mobile Layout --- */
+.tentang-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 28px;
+  align-items: stretch;
+}
+
+/* Tablet (641px - 1024px): Row 1 has 2 cards, Row 2 has 1 card centered in the middle! */
+@media (min-width: 641px) and (max-width: 1024px) {
+  .tentang-cards-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+  .tentang-card-3 {
+    grid-column: 1 / -1 !important;
+    max-width: 500px !important;
+    margin: 0 auto !important;
+    width: 100% !important;
+  }
+}
+
+/* Mobile (< 640px): Stack 1 column centered */
+@media (max-width: 640px) {
+  .tentang-cards-grid {
+    grid-template-columns: 1fr !important;
+    gap: 20px !important;
+  }
+  .tentang-card-3 {
+    grid-column: auto !important;
+    max-width: 100% !important;
+  }
 }
