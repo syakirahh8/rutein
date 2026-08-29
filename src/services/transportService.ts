@@ -1,5 +1,11 @@
 import { supabase } from '@/lib/supabaseClient';
-import type { TransportRoute, TransportStop, TransportSchedule, Disruption } from '@/types/database.types';
+import type {
+  TransportRoute,
+  TransportStop,
+  TransportSchedule,
+  Disruption,
+  TransportMode,
+} from '@/types/database.types';
 import { handleSupabaseError } from './supabaseService';
 import { distanceMeters } from './locationService';
 import type { GeoPoint } from '@/types/domain.types';
@@ -20,13 +26,29 @@ export async function getStopsForRoute(routeId: string): Promise<TransportStop[]
   return data ?? [];
 }
 
+/**
+ * A transport_stops row with its parent route's mode/name embedded, plus
+ * the computed distance from the search point. `transport_routes` is
+ * nullable because `route_id` on TransportStop is nullable in the schema.
+ */
+export interface NearbyTransportStop extends TransportStop {
+  distanceM: number;
+  transport_routes: Pick<TransportRoute, 'mode' | 'route_name' | 'route_code'> | null;
+}
+
 /** Finds transit stops within `radiusM` meters of a point, across all routes. */
-export async function findNearbyStops(point: GeoPoint, radiusM = 800): Promise<(TransportStop & { distanceM: number })[]> {
+export async function findNearbyStops(
+  point: GeoPoint,
+  radiusM = 800
+): Promise<NearbyTransportStop[]> {
   // Nominal bounding box pre-filter (cheap), then precise haversine filter client-side.
   const degDelta = radiusM / 111_000; // rough meters-per-degree
   const { data, error } = await supabase
     .from('transport_stops')
-    .select('*')
+    // Embed the parent route so callers get the transport mode
+    // (bus/mrt/krl/etc.) and route name without a second round trip.
+    // Requires the transport_stops.route_id -> transport_routes.id FK.
+    .select('*, transport_routes(mode, route_name, route_code)')
     .gte('latitude', point.lat - degDelta)
     .lte('latitude', point.lat + degDelta)
     .gte('longitude', point.lng - degDelta)
@@ -35,9 +57,12 @@ export async function findNearbyStops(point: GeoPoint, radiusM = 800): Promise<(
   if (error) handleSupabaseError('findNearbyStops', error);
 
   return (data ?? [])
-    .map((stop) => ({ ...stop, distanceM: distanceMeters(point, { lat: stop.latitude, lng: stop.longitude }) }))
-    .filter((stop) => stop.distanceM <= radiusM)
-    .sort((a, b) => a.distanceM - b.distanceM);
+    .map((stop: any) => ({
+      ...stop,
+      distanceM: distanceMeters(point, { lat: stop.latitude, lng: stop.longitude }),
+    }))
+    .filter((stop: NearbyTransportStop) => stop.distanceM <= radiusM)
+    .sort((a: NearbyTransportStop, b: NearbyTransportStop) => a.distanceM - b.distanceM);
 }
 
 export async function getSchedulesForRoute(routeId: string): Promise<TransportSchedule[]> {
