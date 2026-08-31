@@ -50,7 +50,6 @@ export interface SavedPlace {
   created_at: string;
   updated_at: string;
 }
-
 export interface UserPreferences {
   user_id: string;
   preferred_transport: TransportMode[];
@@ -60,6 +59,8 @@ export interface UserPreferences {
   avoid_transfers: boolean;
   default_home_place_id: string | null;
   default_work_place_id: string | null;
+  profile_type: 'school' | 'travel' | 'work' | null;
+  onboarding_completed_at: string | null;
   updated_at: string;
 }
 

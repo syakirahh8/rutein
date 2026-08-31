@@ -2,9 +2,13 @@ import { supabase } from '@/lib/supabaseClient';
 import { handleSupabaseError } from './supabaseService';
 import type { UserPreferences, Profile } from '@/types/database.types';
 
-export async function getPreferences(userId: string): Promise<UserPreferences | null> {
-  const { data, error } = await supabase.from('user_preferences').select('*').eq('user_id', userId).maybeSingle();
-  if (error) handleSupabaseError('getPreferences', error);
+export async function getPreferences(userId: string) {
+  const { data, error } = await supabase
+    .from('user_preferences')
+    .select('*')
+    .eq('user_id', userId)
+    .single();
+  if (error) throw error;
   return data;
 }
 
