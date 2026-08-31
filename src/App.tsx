@@ -5,7 +5,7 @@ import ProtectedRoute from '@/components/ProtectedRoute';
 import NavBar from '@/components/NavBar';
 
 import LandingPage from '@/pages/LandingPage';
-import Login from '@/pages/Login';
+import { Login, TransportPreference, ProfileSelect } from '@/pages/Auth';
 import Dashboard from '@/pages/Dashboard';
 import MapPage from '@/pages/MapPage';
 import RouteComparison from '@/pages/RouteComparison';
@@ -34,6 +34,8 @@ export default function App() {
         <Routes>
           <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/onboarding/transport" element={<ProtectedRoute><TransportPreference /></ProtectedRoute>} />
+<Route path="/onboarding/profile" element={<ProtectedRoute><ProfileSelect /></ProtectedRoute>} />
           <Route path="/dashboard" element={<AppLayout><Dashboard /></AppLayout>} />
           <Route path="/map" element={<AppLayout><MapPage /></AppLayout>} />
           <Route path="/routes" element={<AppLayout><RouteComparison /></AppLayout>} />
@@ -45,6 +47,7 @@ export default function App() {
           <Route path="/places" element={<AppLayout><SavedPlaces /></AppLayout>} />
           <Route path="/preferences" element={<AppLayout><Preferences /></AppLayout>} />
           <Route path="/profile" element={<AppLayout><Profile /></AppLayout>} />
+    
         </Routes>
       </BrowserRouter>
     </AuthProvider>
