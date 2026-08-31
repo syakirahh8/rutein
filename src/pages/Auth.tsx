@@ -5,6 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import {
   saveTransportPreference,
   saveProfileType,
+  getOnboardingStatus,
   type OnboardingTransportType,
   type OnboardingProfileType,
 } from '@/services/onboardingService';
@@ -64,11 +65,34 @@ const sharedStyles = `
 
   .auth-input::placeholder { color: #9A9A9A; }
   .auth-input:focus { outline: none; border-color: ${C.primary}; }
+
+  /* ---------------- Responsive ---------------- */
+  .auth-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+  .auth-shell-inner { width: 100%; }
+
+  @media (max-width: 520px) {
+    .auth-actions { flex-direction: column; }
+    .auth-actions > button { width: 100%; }
+    .profile-option { width: 100% !important; max-width: 260px; }
+    .chip-row { gap: 8px !important; }
+  }
+
+  @media (max-width: 360px) {
+    .auth-input { padding: 14px 20px !important; font-size: 15px !important; }
+  }
 `;
 
 /**
  * Background video used on every auth/onboarding screen.
- * Video opacity is set to 100% (overlay removed).
+ *
+ * `frozen = false` (Login): the video autoplays once, no `loop`, so it
+ * naturally settles on its final frame once playback finishes.
+ *
+ * `frozen = true` (TransportPreference / ProfileSelect): the video is
+ * never played — as soon as its metadata loads we jump straight to the
+ * last frame and pause, so it renders as a static "already finished"
+ * backdrop the instant these screens mount, matching what the user sees
+ * right after logging in / signing up.
  */
 function AuthVideoBackground({ frozen = false }: { frozen?: boolean }) {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -107,7 +131,6 @@ function AuthVideoBackground({ frozen = false }: { frozen?: boolean }) {
         height: '100%',
         objectFit: 'cover',
         zIndex: 0,
-        opacity: 1, // Full 100% opacity
       }}
     />
   );
@@ -132,13 +155,27 @@ function AuthShell({
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '40px 20px',
+        padding: 'clamp(16px, 6vw, 40px) 20px',
+        boxSizing: 'border-box',
       }}
     >
       <style>{sharedStyles}</style>
       <AuthVideoBackground frozen={frozenVideo} />
-      <div style={{ position: 'relative', zIndex: 2, width: '100%', maxWidth, textAlign: 'center' }}>{children}</div>
+      <div className="auth-shell-inner" style={{ position: 'relative', zIndex: 2, maxWidth, textAlign: 'center' }}>
+        {children}
+      </div>
     </div>
+  );
+}
+
+/** Small centered loading state shown while we check onboarding status,
+ * so the onboarding form never flashes before an already-onboarded user
+ * gets redirected home. */
+function AuthLoadingScreen() {
+  return (
+    <AuthShell frozenVideo>
+      <p style={{ ...bodyFont, color: C.textMuted, fontSize: 14 }}>Memuat…</p>
+    </AuthShell>
   );
 }
 
@@ -187,42 +224,48 @@ export function Login() {
     setError(null);
     setSubmitting(true);
     const result = mode === 'signin' ? await signIn(email, password) : await signUp(email, password, fullName);
-    setSubmitting(false);
 
     if (result.error) {
+      setSubmitting(false);
       setError(result.error.message);
       return;
     }
-    
+
     if (mode === 'signup') {
+      setSubmitting(false);
       if (!result.session) {
         setError('Akun berhasil dibuat. Cek email kamu untuk konfirmasi sebelum masuk.');
         return;
       }
+      // Brand-new account — always send straight to onboarding.
       navigate('/onboarding/transport');
       return;
     }
 
-    // For Sign In: Check if preferences/profile are set. 
-    // Assuming user metadata or object has onboarding flags (e.g., hasCompletedOnboarding)
-    const hasCompletedOnboarding = result.user?.user_metadata?.has_completed_onboarding;
-    if (!hasCompletedOnboarding) {
-      navigate('/onboarding/transport');
-      return;
+    // Sign in: only send returning users through onboarding if they
+    // genuinely haven't finished it yet (checked against the real
+    // `user_preferences.onboarding_completed_at` column, not client
+    // auth metadata, which nothing in the app ever sets).
+    try {
+      const status = result.user ? await getOnboardingStatus(result.user.id) : { completed: false };
+      navigate(status.completed ? '/' : '/onboarding/transport');
+    } finally {
+      setSubmitting(false);
     }
-
-    navigate('/');
   }
 
   return (
     <AuthShell>
       <h1
         className="font-jockey auth-fade"
-        style={{ fontSize: 46, margin: '0 0 34px', color: C.text, animationDelay: '0ms' }}
+        style={{ fontSize: 'clamp(30px, 8vw, 46px)', margin: '0 0 34px', color: C.text, animationDelay: '0ms' }}
       >
         {mode === 'signin' ? 'Login Rutein' : 'Daftar Rutein'}
       </h1>
 
+      {/* key={mode} forces every field below to fully remount on each
+          Masuk/Daftar toggle, so the whole form fades down together and
+          consistently. */}
       <form key={mode} onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
         {mode === 'signup' && (
           <input
@@ -294,6 +337,42 @@ export function Login() {
   );
 }
 
+/**
+ * Shared guard for the two onboarding screens: if the signed-in user has
+ * already finished onboarding (real DB check, not metadata), redirect
+ * home immediately instead of showing the form again — covers direct
+ * links, browser back/forward, and bookmarks.
+ */
+function useOnboardingGuard(): boolean {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const [checking, setChecking] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!user) {
+      setChecking(false);
+      return;
+    }
+
+    getOnboardingStatus(user.id).then((status) => {
+      if (cancelled) return;
+      if (status.completed) {
+        navigate('/', { replace: true });
+        return;
+      }
+      setChecking(false);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user, navigate]);
+
+  return checking;
+}
+
 // ============================================================
 // ONBOARDING · STEP 1 — TRANSPORT PREFERENCE
 // ============================================================
@@ -312,9 +391,12 @@ const TRANSPORT_OPTIONS: { value: OnboardingTransportType; label: string }[] = [
 export function TransportPreference() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const checking = useOnboardingGuard();
   const [selected, setSelected] = useState<Set<OnboardingTransportType>>(new Set());
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  if (checking) return <AuthLoadingScreen />;
 
   function toggle(value: OnboardingTransportType) {
     setSelected((prev) => {
@@ -344,14 +426,14 @@ export function TransportPreference() {
       <span className="font-jockey auth-fade" style={{ fontSize: 13, letterSpacing: '0.08em', textTransform: 'uppercase', color: C.primary, fontWeight: 700, animationDelay: '0ms' }}>
         Langkah 1 dari 2
       </span>
-      <h1 className="font-jockey auth-fade" style={{ fontSize: 34, margin: '8px 0 12px', color: C.text, animationDelay: '60ms' }}>
+      <h1 className="font-jockey auth-fade" style={{ fontSize: 'clamp(24px, 6vw, 34px)', margin: '8px 0 12px', color: C.text, animationDelay: '60ms' }}>
         Kamu biasa naik apa?
       </h1>
       <p className="auth-fade" style={{ ...bodyFont, color: C.textMuted, marginBottom: 34, fontSize: 14, animationDelay: '120ms' }}>
         Pilih moda transportasi favoritmu — boleh lebih dari satu.
       </p>
 
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, justifyContent: 'center' }}>
+      <div className="chip-row" style={{ display: 'flex', flexWrap: 'wrap', gap: 10, justifyContent: 'center' }}>
         {TRANSPORT_OPTIONS.map((opt, i) => {
           const active = selected.has(opt.value);
           const dot = TRANSPORT_TYPE_COLOR[opt.value] ?? C.primary;
@@ -389,7 +471,7 @@ export function TransportPreference() {
 
       {error && <p style={{ ...bodyFont, color: C.primary, fontSize: 13, marginTop: 20 }}>{error}</p>}
 
-      <div style={{ display: 'flex', gap: 10, justifyContent: 'center', marginTop: 36 }}>
+      <div className="auth-actions" style={{ marginTop: 36 }}>
         <button
           type="button"
           onClick={() => navigate('/onboarding/profile')}
@@ -435,9 +517,12 @@ const PROFILES: { value: OnboardingProfileType; label: string; sub: string; icon
 export function ProfileSelect() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const checking = useOnboardingGuard();
   const [selected, setSelected] = useState<OnboardingProfileType | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  if (checking) return <AuthLoadingScreen />;
 
   async function finish(profileType: OnboardingProfileType | null) {
     if (!user) return;
@@ -458,7 +543,7 @@ export function ProfileSelect() {
       <span className="font-jockey auth-fade" style={{ fontSize: 13, letterSpacing: '0.08em', textTransform: 'uppercase', color: C.primary, fontWeight: 700, animationDelay: '0ms' }}>
         Langkah 2 dari 2
       </span>
-      <h1 className="font-jockey auth-fade" style={{ fontSize: 34, margin: '8px 0 12px', color: C.text, animationDelay: '60ms' }}>
+      <h1 className="font-jockey auth-fade" style={{ fontSize: 'clamp(24px, 6vw, 34px)', margin: '8px 0 12px', color: C.text, animationDelay: '60ms' }}>
         Profil mana yang paling cocok buatmu?
       </h1>
       <p className="auth-fade" style={{ ...bodyFont, color: C.textMuted, marginBottom: 36, fontSize: 14, animationDelay: '120ms' }}>
@@ -473,7 +558,7 @@ export function ProfileSelect() {
               key={p.value}
               type="button"
               onClick={() => setSelected(p.value)}
-              className="profile-fly-in"
+              className="profile-fly-in profile-option"
               style={{
                 display: 'flex',
                 flexDirection: 'column',
@@ -506,7 +591,7 @@ export function ProfileSelect() {
 
       {error && <p style={{ ...bodyFont, color: C.primary, fontSize: 13, marginTop: 20 }}>{error}</p>}
 
-      <div style={{ display: 'flex', gap: 10, justifyContent: 'center', marginTop: 36 }}>
+      <div className="auth-actions" style={{ marginTop: 36 }}>
         <button
           type="button"
           onClick={() => finish(null)}
