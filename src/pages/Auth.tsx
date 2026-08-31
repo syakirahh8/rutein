@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, Navigate } from 'react-router-dom';
-import { Check } from 'lucide-react';
+import { Check, AlertTriangle } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   saveTransportPreference,
@@ -12,6 +12,7 @@ import {
 import { TRANSPORT_TYPE_COLOR } from '@/components/transportMarkerIcon';
 
 import authVideo from '@/assets/videos/auth.mov';
+import rutinLogo from '@/assets/images/logo-rutein.svg';
 import profileSchoolSvg from '@/assets/images/profile-school.svg';
 import profileTravelSvg from '@/assets/images/profile-travel.svg';
 import profileWorkSvg from '@/assets/images/profile-work.svg';
@@ -63,8 +64,33 @@ const sharedStyles = `
   }
   .profile-icon-bounce { animation: profileIconBounce 1.1s ease-in-out infinite; }
 
+  @keyframes alertShake {
+    0%, 100% { transform: translateX(0); }
+    20% { transform: translateX(-4px); }
+    40% { transform: translateX(4px); }
+    60% { transform: translateX(-3px); }
+    80% { transform: translateX(3px); }
+  }
+  .auth-alert { animation: authFadeDown 0.3s ease forwards, alertShake 0.4s ease 0.05s; }
+  .auth-alert-info { animation: authFadeDown 0.3s ease forwards; }
+
   .auth-input::placeholder { color: #9A9A9A; }
   .auth-input:focus { outline: none; border-color: ${C.primary}; }
+
+  .auth-logo-link {
+    display: inline-flex;
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    transition: transform 0.15s ease, opacity 0.15s ease;
+  }
+  .auth-logo-link:hover { transform: translateY(-2px); opacity: 0.85; }
+  .auth-logo-link:focus-visible {
+    outline: 2px solid ${C.primary};
+    outline-offset: 4px;
+    border-radius: 8px;
+  }
 
   /* ---------------- Responsive ---------------- */
   .auth-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
@@ -179,6 +205,63 @@ function AuthLoadingScreen() {
   );
 }
 
+/**
+ * Small clickable brand mark shown above the Login heading. Takes the
+ * user back to the marketing landing page — kept as its own component
+ * so it can be dropped onto other auth-adjacent screens later without
+ * duplicating the markup/behavior.
+ */
+function AuthLogoLink({ delay = '0ms' }: { delay?: string }) {
+  const navigate = useNavigate();
+  return (
+    <button
+      type="button"
+      className="auth-logo-link auth-fade"
+      style={{ marginBottom: 22, animationDelay: delay }}
+      onClick={() => navigate('/')}
+      aria-label="Kembali ke halaman utama Rutein"
+    >
+      <img src={rutinLogo} alt="Rutein" style={{ height: 34, width: 'auto', display: 'block' }} />
+    </button>
+  );
+}
+
+/**
+ * Styled message banner used for both hard errors ("email atau password
+ * salah") and softer informational notices (e.g. "cek email kamu").
+ * `tone="error"` gets a firmer shake-in and warning icon; `tone="info"`
+ * is the same shape without the shake, so success-ish copy doesn't read
+ * as alarming.
+ */
+function AuthAlert({ children, tone = 'error' }: { children: React.ReactNode; tone?: 'error' | 'info' }) {
+  return (
+    <div
+      role={tone === 'error' ? 'alert' : 'status'}
+      className={tone === 'error' ? 'auth-alert' : 'auth-alert-info'}
+      style={{
+        display: 'flex',
+        alignItems: 'flex-start',
+        gap: 10,
+        padding: '12px 16px',
+        borderRadius: 14,
+        border: `1.5px solid ${tone === 'error' ? C.primary : C.border}`,
+        background: tone === 'error' ? 'rgba(218,54,42,0.08)' : 'rgba(183,168,151,0.14)',
+        textAlign: 'left',
+      }}
+    >
+      <AlertTriangle
+        size={16}
+        strokeWidth={2.25}
+        color={tone === 'error' ? C.primary : C.textMuted}
+        style={{ flexShrink: 0, marginTop: 1 }}
+      />
+      <span style={{ ...bodyFont, fontSize: 13, lineHeight: 1.45, color: tone === 'error' ? C.text : C.textMuted }}>
+        {children}
+      </span>
+    </div>
+  );
+}
+
 const inputStyle: React.CSSProperties = {
   width: '100%',
   boxSizing: 'border-box',
@@ -215,6 +298,7 @@ export function Login() {
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   if (user) return <Navigate to="/" replace />;
@@ -222,6 +306,7 @@ export function Login() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setNotice(null);
     setSubmitting(true);
     const result = mode === 'signin' ? await signIn(email, password) : await signUp(email, password, fullName);
 
@@ -234,7 +319,7 @@ export function Login() {
     if (mode === 'signup') {
       setSubmitting(false);
       if (!result.session) {
-        setError('Akun berhasil dibuat. Cek email kamu untuk konfirmasi sebelum masuk.');
+        setNotice('Akun berhasil dibuat. Cek email kamu untuk konfirmasi sebelum masuk.');
         return;
       }
       // Brand-new account — always send straight to onboarding.
@@ -256,9 +341,11 @@ export function Login() {
 
   return (
     <AuthShell>
+      <AuthLogoLink />
+
       <h1
         className="font-jockey auth-fade"
-        style={{ fontSize: 'clamp(30px, 8vw, 46px)', margin: '0 0 34px', color: C.text, animationDelay: '0ms' }}
+        style={{ fontSize: 'clamp(30px, 8vw, 46px)', margin: '0 0 34px', color: C.text, animationDelay: '40ms' }}
       >
         {mode === 'signin' ? 'Login Rutein' : 'Daftar Rutein'}
       </h1>
@@ -297,11 +384,8 @@ export function Login() {
           required
         />
 
-        {error && (
-          <p className="auth-fade" style={{ ...bodyFont, color: C.primary, fontSize: 13, margin: 0, animationDelay: '150ms' }}>
-            {error}
-          </p>
-        )}
+        {error && <AuthAlert tone="error">{error}</AuthAlert>}
+        {notice && <AuthAlert tone="info">{notice}</AuthAlert>}
 
         <button
           type="submit"
@@ -326,6 +410,7 @@ export function Login() {
           type="button"
           onClick={() => {
             setError(null);
+            setNotice(null);
             setMode(mode === 'signin' ? 'signup' : 'signin');
           }}
           style={{ background: 'none', border: 'none', padding: 0, color: C.primary, fontWeight: 700, cursor: 'pointer', ...bodyFont, fontSize: 14 }}
@@ -469,7 +554,11 @@ export function TransportPreference() {
         })}
       </div>
 
-      {error && <p style={{ ...bodyFont, color: C.primary, fontSize: 13, marginTop: 20 }}>{error}</p>}
+      {error && (
+        <div style={{ marginTop: 20 }}>
+          <AuthAlert tone="error">{error}</AuthAlert>
+        </div>
+      )}
 
       <div className="auth-actions" style={{ marginTop: 36 }}>
         <button
@@ -589,7 +678,11 @@ export function ProfileSelect() {
         })}
       </div>
 
-      {error && <p style={{ ...bodyFont, color: C.primary, fontSize: 13, marginTop: 20 }}>{error}</p>}
+      {error && (
+        <div style={{ marginTop: 20 }}>
+          <AuthAlert tone="error">{error}</AuthAlert>
+        </div>
+      )}
 
       <div className="auth-actions" style={{ marginTop: 36 }}>
         <button
