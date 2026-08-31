@@ -1,167 +1,320 @@
-# Rutein
+<div align="center">
 
-Public-transit navigation and travel-assistance web app for Jakarta —
-built for people who are lost, overwhelmed, juggling multiple transit modes,
-and watching their budget.
+  # RUTEIN
+  ### Navigasi transportasi publik, tanpa ribet.
 
-React + TypeScript + Supabase (Auth, Postgres, RLS, Realtime, Edge Functions).
+  [![Live Demo](https://img.shields.io/badge/🚀_Live_Demo-Visit_Site-success?style=for-the-badge)](https://[URL_DEMO])
+  [![GitHub](https://img.shields.io/badge/GitHub-Repository-181717?style=for-the-badge&logo=github)](https://[URL_REPO])
+  [![License](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)](LICENSE)
 
-## Status: what's real vs. what's scaffolded
+  **Submission for ITECHNO CUP 2026 - Web Development**
 
-**Fully functional, real data, no shortcuts:**
-- Auth (sign up/in/out, session persistence, protected routes)
-- Full Supabase schema with RLS on every table (see `supabase/migrations`)
-- Geocoding / place search — live OpenStreetMap Nominatim, no fake place names
-- Interactive map — real Leaflet map, real browser geolocation, real reverse geocoding
-- Route generation & comparison — pulls actual nearby stops from the DB, builds
-  real multi-leg (walk→transit→walk) journeys, and classifies them into
-  cheapest/fastest/moderate via a genuine scoring function
-  (`src/services/routeService.ts`) — not three hardcoded cards
-- Budget Planner — real calculation logic, persisted to Supabase, editable/deletable
-- Saved Places, Preferences, Profile — full CRUD against Supabase with RLS
-- Live GPS Modal — **real** `navigator.geolocation.watchPosition`, with proper
-  permission-denied / unavailable / unsupported / timeout handling and live
-  waypoint-arrival detection. No simulated movement.
-- Disruptions — realtime via Supabase Realtime, subscribed live in the UI
+  **By Tim CEO, CTO, CMO**
 
-**Realer, but still curated (not a live official feed):**
-- All transit station/route data (`0006`–`0009` migrations) — MRT Jakarta
-  (all 13 real stations), LRT Jakarta (6 real stations), 6 real TransJakarta
-  corridors including the full Ragunan–Monas Koridor 6H sequence, and real
-  KRL Commuter Line stations from Bogor to Jakarta Kota — with real names
-  and best-effort accurate coordinates from public knowledge of these
-  systems. Tagged `source = 'curated'` (shown in the UI as "Real stations,
-  curated") to distinguish it honestly from a scraped/verified government
-  feed.
-- Fare amounts in `routeService.ts` are realistic flat-rate/distance-based
-  approximations (TransJakarta ~Rp3,500, MRT ~Rp8,000, KRL ~Rp4,000, ojek
-  online ~Rp9,000 base + Rp2,500/km), not a live fare API.
+</div>
 
-**No demo/fabricated data remains.** `0009_remove_demo_data_expand_curated.sql`
-deleted every placeholder schedule time and example disruption that
-0006 had seeded. As a result:
-- The **Schedule** screen shows real station names per route, but no
-  departure times until a real live-schedule feed is connected (it says
-  "No schedule data for this route yet" rather than showing fake times).
-- The **Disruptions** screen shows "No active disruptions" by default,
-  rather than fabricated examples.
+---
 
-This was a deliberate trade: showing nothing is more honest than showing
-numbers that look real but aren't. See "Wiring in a real live feed" below
-for how to fill these back in with actual data.
+## 📋 Daftar Isi
 
-**Automated official-data fetch — attempted, didn't work from this
-environment:**
-- `data.go.id` / `satudata.jakarta.go.id` — JS-rendered dashboards with
-  click-through downloads, no stable public API URL.
-- `jakartasatu.jakarta.go.id` (Jakarta's ArcGIS GIS server, which does have
-  real `Halte Transjakarta` / `Jalur Transjakarta` layers) — has bot
-  detection blocking automated requests, and its native coordinates are
-  UTM zone 48S (EPSG:32748), not lat/lng, so even a manual pull needs
-  reprojection. See "Importing official government data" below for the
-  manual path.
+- [Tentang Proyek](#-tentang-proyek)
+- [Fitur Unggulan](#-fitur-unggulan)
+- [Demo & Screenshot](#-demo--screenshot)
+- [Teknologi](#-teknologi)
+- [Arsitektur Sistem](#-arsitektur-sistem)
+- [Instalasi & Setup](#-instalasi--setup)
+- [Penggunaan](#-penggunaan)
+- [Pembagian Tugas Tim](#-pembagian-tugas-tim)
+- [Progress & To-Do](#-progress--to-do)
+- [Lisensi](#-lisensi)
 
-**Architecture-only, not implemented (by design — you're integrating this yourself):**
-- Confused Mode's actual LLM call. The chat UI, message history, suggested
-  questions, and context-passing (location/destination/disruptions/preferences)
-  are fully wired. `supabase/functions/confused-mode/index.ts` is a working
-  Edge Function that returns a clearly-labeled placeholder reply — swap in a
-  real LLM call there and nothing on the frontend needs to change.
+---
 
-## Wiring in a real live feed (schedules & disruptions)
+## 👥 Tim Developer
 
-Both tables are empty by default now (see above). To populate them for
-real:
-- **TransJakarta** publishes a public GTFS-realtime-style feed for some
-  corridors via their developer contact — no self-serve free API key as
-  of this writing; you'd need to request access directly from
-  `transjakarta.co.id`.
-- **KRL Commuter Line** (KAI Commuter) has an unofficial but widely-used
-  API (`KRL Access` app's backend) that developers have reverse-engineered;
-  search "KRL Access API" for current community documentation — this is
-  not an official/stable API and may break without notice.
-- Whichever source you use, insert rows into `transport_schedules` with
-  `is_fallback = false` once connected, so the UI badge correctly shows
-  live data instead of "no data yet".
+| Nama | Peran | GitHub |
+|------|-------|--------|
+| **Quan** | Backend Developer & System Architect | [GitHub](https://github.com/[username-quan]) |
+| **Syakir** | Frontend Developer & UI/UX Designer | [GitHub](https://github.com/[username-syakir]) |
+| **Nael** | Frontend Developer & UI/UX Designer | [GitHub](https://github.com/[username-nael]) |
 
-## Importing official government data (manual step)
+---
 
-`data.go.id` and `satudata.jakarta.go.id` are JS-rendered dashboards with
-click-through downloads — there's no stable public API URL to pull from
-automatically. To bring in genuinely official data:
+## 🎯 Tentang Proyek
 
-1. Visit https://data.go.id/dataset?q=transjakarta (or search
-   `satudata.jakarta.go.id` directly) and open a dataset, e.g.
-   **"Data Halte Transjakarta Tahun 2023"** or **"Data Rute Jalur
-   Transjakarta Tahun 2023"**.
-2. Click **Download** → choose **CSV** or **XLSX**.
-3. Save the file, then either:
-   - Open it in Excel/Sheets, map the columns to `transport_stops`
-     (`stop_name`, `latitude`, `longitude`, `route_id`, `sequence_order`)
-     and import via the Supabase Table Editor's CSV import, or
-   - Hand the file to an LLM/script to generate a migration that
-     `INSERT`s the rows with `source = 'official'`.
-4. Either way, set `source = 'official'` on the resulting `transport_routes`
-   rows so the UI badge reflects that it's a verified government dataset,
-   distinct from the `curated` (real-but-hand-compiled) data already seeded.
+### Latar Belakang
 
-## Getting started
+Menggunakan transportasi publik di kota-kota besar Indonesia seperti Jakarta sering kali membingungkan. Ada banyak moda transportasi yang tersedia — TransJakarta, MRT, LRT, KRL, bus kota, hingga ojek online — namun tidak ada satu platform yang memudahkan pengguna untuk membandingkan waktu tempuh, biaya, dan jumlah transit dari semua moda tersebut sekaligus. Ditambah lagi, informasi gangguan lalu lintas dan jadwal keberangkatan seringkali tersebar di berbagai sumber yang tidak terintegrasi, membuat perencanaan perjalanan menjadi tidak efisien — terutama bagi pengguna baru yang belum familiar dengan rute transportasi di kotanya sendiri.
+
+### Solusi yang Ditawarkan
+
+**RUTEIN** hadir sebagai asisten navigasi transportasi publik yang menggabungkan peta interaktif, perbandingan rute multi-moda, estimasi biaya perjalanan, jadwal keberangkatan, hingga notifikasi gangguan lalu lintas — semuanya dalam satu aplikasi web. Fitur andalan kami, **Confused Mode**, memungkinkan pengguna yang benar-benar bingung untuk cukup bertanya "aku harus naik apa?" atau "aku ada di mana?", dan RUTEIN akan menjawab menggunakan lokasi GPS real-time, data transportasi terdekat, serta rute yang benar-benar terhitung — bukan sekadar jawaban generik.
+
+### Tujuan Proyek
+
+- 🎯 **Tujuan Utama**: Membuat perjalanan dengan transportasi publik lebih terencana, transparan, dan mudah dipahami.
+- 📊 **Target Pengguna**: Warga urban (khususnya Jabodetabek) yang menggunakan transportasi publik untuk aktivitas sehari-hari — pelajar, pekerja, hingga pendatang baru.
+- 💡 **Value Proposition**: Perbandingan rute yang logis (efisien, termurah, tercepat), data transportasi Indonesia yang terkurasi secara nyata, serta asisten AI kontekstual yang memahami lokasi dan situasi pengguna secara real-time.
+
+---
+
+## ✨ Fitur Unggulan
+
+### Fitur Utama
+
+| Fitur | Deskripsi | Keunggulan |
+|----------|--------------|---------------|
+| **Peta Interaktif** | Peta berbasis MapLibre dengan lapisan halte/stasiun, filter per moda transportasi, mode satelit, dan street-level view. | Semua titik transportasi publik Indonesia tervisualisasi dalam satu peta yang bisa diklik langsung. |
+| **Route Comparison** | Membandingkan 3 pendekatan perjalanan: *Efficient*, *Cheapest*, dan *Hurry*. | Pengguna bisa memilih rute sesuai prioritas mereka — waktu, biaya, atau kenyamanan. |
+| **Multi-Transit Routing** | Menggabungkan berjalan kaki, bus, TransJakarta, MRT, LRT, KRL, dan ojek online dalam satu rencana perjalanan. | Rute dihitung sebagai satu perjalanan utuh, bukan per moda terpisah. |
+| **Confused Mode** | Chat assistant berbasis AI yang memakai lokasi GPS, tempat & transportasi terdekat, serta rute yang benar-benar dihitung. | Jawaban AI tidak "mengarang" — semua angka berasal dari data lokasi dan mesin rute yang nyata. |
+
+### Fitur Tambahan
+
+- **Budget Planner** - Menghitung estimasi biaya transportasi harian/mingguan/bulanan berdasarkan rute favorit, dan menyimpannya sebagai portofolio anggaran.
+- **Transport Schedule** - Menampilkan jadwal keberangkatan per stasiun/halte, lengkap dengan status *on time*, *delayed*, atau *cancelled*.
+- **Live Disruption Alerts** - Informasi gangguan lalu lintas aktif (banjir, kemacetan, kecelakaan, kebijakan rekayasa lalu lintas) lengkap dengan tingkat keparahan.
+- **Live GPS Tracking** - Melacak posisi pengguna secara real-time selama perjalanan berlangsung dan mendeteksi kedatangan di setiap titik pemberhentian.
+- **Street-Level View** - Melihat kondisi jalan/lokasi dari sudut pandang jalanan langsung di peta menggunakan citra Mapillary.
+- **Saved Places & Preferences** - Menyimpan lokasi favorit (Rumah, Sekolah, Kantor) serta preferensi moda transportasi untuk mempercepat perencanaan rute berikutnya.
+
+---
+
+## 📸 Demo & Screenshot
+
+### Live Demo
+
+🔗 **[Kunjungi Website](https://[URL_DEMO])**
+
+### Screenshot Aplikasi
+
+<div align="center">
+  <img src="[URL_SCREENSHOT_LANDING]" alt="Landing Page" width="800"/>
+  <p><em>Landing Page - Perkenalan RUTEIN</em></p>
+
+  <img src="[URL_SCREENSHOT_DASHBOARD]" alt="Dashboard" width="800"/>
+  <p><em>Dashboard - Titik awal perencanaan perjalanan</em></p>
+
+  <img src="[URL_SCREENSHOT_MAP]" alt="Interactive Map" width="800"/>
+  <p><em>Peta Interaktif - Filter transportasi, mode satelit, dan street view</em></p>
+
+  <img src="[URL_SCREENSHOT_ROUTES]" alt="Route Comparison" width="800"/>
+  <p><em>Route Comparison - Efficient, Cheapest, dan Hurry</em></p>
+
+  <img src="[URL_SCREENSHOT_CONFUSED]" alt="Confused Mode" width="800"/>
+  <p><em>Confused Mode - Asisten navigasi berbasis AI</em></p>
+</div>
+
+### Video Demo
+
+📹 **[Link Video Demo](https://[URL_VIDEO])** _(opsional)_
+
+---
+
+## 🛠️ Teknologi
+
+### Tech Stack
+
+#### Frontend
+```
+Framework    : React 18 + TypeScript (Vite)
+Routing      : React Router DOM
+UI/Design    : Design System kustom (CSS variables & komponen sendiri) — dibangun sendiri oleh tim, tanpa UI library pihak ketiga
+Icons        : lucide-react
+Peta         : MapLibre GL JS + react-map-gl, Leaflet & react-leaflet (live GPS tracking)
+Street View  : mapillary-js
+```
+
+#### Backend & Data
+```
+BaaS         : Supabase (PostgreSQL, Auth, Edge Functions)
+AI Assistant : Supabase Edge Function (Confused Mode chat)
+Geocoding    : Nominatim (OpenStreetMap)
+Peta Dasar   : OpenFreeMap (vector tiles), Esri World Imagery (mode satelit)
+Data Transit : Dataset transportasi publik Indonesia yang dikurasi manual (TransJakarta, MRT, LRT, KRL, kereta antarkota, feri, terminal)
+```
+
+#### DevOps & Tools
+```
+Build Tool   : Vite
+Deployment   : [Vercel / Netlify / dll — sesuaikan]
+Version Ctrl : Git & GitHub
+```
+
+### Alasan Pemilihan Teknologi
+
+| Teknologi | Alasan Pemilihan |
+|-----------|------------------|
+| **React + TypeScript** | Memberikan struktur komponen yang jelas dan type-safety untuk data rute, jadwal, dan lokasi yang kompleks. |
+| **Supabase** | Menyediakan Auth, database Postgres, dan Edge Functions dalam satu platform tanpa perlu membangun backend terpisah dari nol. |
+| **MapLibre GL + OpenFreeMap** | Rendering peta vektor yang ringan, open-source, dan tidak bergantung pada API key berbayar seperti Google Maps. |
+| **Design System kustom** | Karena tampilan RUTEIN dirancang sepenuhnya oleh tim sendiri, kami membangun token warna, tipografi, dan komponen UI sendiri agar identitas visual RUTEIN konsisten di seluruh halaman. |
+
+### Dependencies Utama
+
+```json
+{
+  "dependencies": {
+    "react": "^18.x.x",
+    "react-dom": "^18.x.x",
+    "react-router-dom": "^6.x.x",
+    "@supabase/supabase-js": "^2.x.x",
+    "maplibre-gl": "^4.x.x",
+    "react-map-gl": "^7.x.x",
+    "leaflet": "^1.x.x",
+    "react-leaflet": "^4.x.x",
+    "mapillary-js": "^4.x.x",
+    "lucide-react": "^0.x.x"
+  }
+}
+```
+
+---
+
+## 🏗️ Arsitektur Sistem
+
+### System Architecture
+
+```
+[Browser / React SPA]
+        │
+        ├── PlaceSearchInput / MapPage  ──►  Nominatim (Geocoding & Reverse Geocoding)
+        ├── MapPage                     ──►  OpenFreeMap (tiles) / Esri (satellite)
+        ├── StreetViewModal             ──►  Mapillary API (street-level imagery)
+        ├── ConfusedMode                ──►  Supabase Edge Function ──►  AI Model
+        └── Auth / Data (Places, Budget,
+            Preferences, Disruptions)   ──►  Supabase (Postgres + Auth)
+```
+
+### Folder Structure
+
+```
+project-root/
+├── src/
+│   ├── components/     # Komponen UI yang dapat dipakai ulang (NavBar, PlaceSearchInput, dsb.)
+│   ├── pages/           # Halaman aplikasi (Dashboard, MapPage, RouteComparison, dsb.)
+│   ├── hooks/           # Custom hooks (lokasi, geocoding, nearby context, dsb.)
+│   ├── services/        # Pemanggilan API/Supabase (routeService, geocodingService, dsb.)
+│   ├── lib/              # Fungsi murni pembantu (pembangun konteks AI, deteksi intent, dsb.)
+│   ├── contexts/        # React Context (AuthContext)
+│   ├── data/             # Dataset statis yang dikurasi (transportasi & gangguan lalu lintas Indonesia)
+│   ├── types/            # Definisi TypeScript
+│   └── assets/           # Ilustrasi & aset visual landing page
+└── public/               # Aset statis
+```
+
+---
+
+## ⚙️ Instalasi & Setup
+
+### Prerequisites
+
+Pastikan Anda telah menginstall:
+- **Node.js** (v18.x atau lebih tinggi)
+- **npm** / **yarn** / **pnpm**
+- Akun **Supabase** (untuk Auth, database, dan Edge Function Confused Mode)
+- **Git**
+
+### Langkah Instalasi
+
+#### 1️⃣ Clone Repository
+
+```bash
+git clone https://github.com/[username]/rutein.git
+cd rutein
+```
+
+#### 2️⃣ Install Dependencies
 
 ```bash
 npm install
-cp .env.example .env      # fill in your Supabase project URL/anon key
+```
+
+#### 3️⃣ Setup Environment Variables
+
+Buat file `.env` di root directory:
+
+```env
+# Supabase
+VITE_SUPABASE_URL="[url_project_supabase_anda]"
+VITE_SUPABASE_ANON_KEY="[anon_key_supabase_anda]"
+
+# Peta
+VITE_MAP_STYLE="positron"
+
+# Street View (opsional — dapatkan token gratis di mapillary.com)
+VITE_MAPILLARY_TOKEN="[token_mapillary_anda]"
+```
+
+#### 4️⃣ Setup Database
+
+Jalankan skema tabel Supabase Anda (auth, saved_places, budget_plans, user_preferences, transport_stops, transport_routes, disruptions, dsb.) sesuai migrasi proyek, lalu deploy Edge Function untuk **Confused Mode** melalui Supabase CLI.
+
+#### 5️⃣ Run Development Server
+
+```bash
 npm run dev
 ```
 
-### Supabase setup
+Aplikasi akan berjalan di `http://localhost:5173` (port default Vite).
 
-1. Create a project at supabase.com.
-2. Run the migrations in order (`supabase/migrations/0001...0009`) via the
-   Supabase SQL editor, or with the CLI:
-   ```bash
-   supabase link --project-ref your-project-ref
-   supabase db push
-   ```
-3. Copy your project URL and anon key into `.env`.
-4. (Optional) Deploy the Confused Mode Edge Function placeholder:
-   ```bash
-   supabase functions deploy confused-mode
-   ```
+---
 
-### Optional: better routing
+## 🚀 Penggunaan
 
-Without `VITE_ORS_API_KEY`, walking directions fall back to a straight-line
-distance/duration estimate (clearly marked internally as `isEstimate: true`).
-For real walking polylines, get a free key at openrouteservice.org and add it
-to `.env`.
+### Menjalankan Aplikasi
 
-## Project structure
+```bash
+# Development mode
+npm run dev
 
-```
-src/
-  components/     Reusable UI (PlaceSearchInput, RouteOptionCard, LiveGpsModal, ...)
-  contexts/       AuthContext
-  pages/          One file per screen (Dashboard, MapPage, RouteComparison, ...)
-  services/       All business logic — no Supabase calls in components directly:
-                    authService, supabaseService, geocodingService, mapService,
-                    locationService, transportService, routeService,
-                    budgetService, savedPlacesService, preferencesService,
-                    disruptionService, confusedModeService
-  types/          database.types.ts (schema shapes), domain.types.ts (route/place shapes)
-supabase/
-  migrations/     0001-0009, run in order
-  functions/
-    confused-mode/  Edge Function placeholder for future LLM integration
+# Production build
+npm run build
+npm run preview
+
+# Linting
+npm run lint
 ```
 
-## Known simplifications (student-project scope)
+### User Guide Singkat
 
-- Route generation only tries direct-walk + single-transfer transit journeys
-  (walk → one route → walk). Multi-transfer itineraries (e.g. bus → MRT → walk)
-  are supported by the data model (`journey_legs` is a fully general ordered
-  leg table) but the current `generateRouteOptions()` doesn't search
-  multi-hop paths yet — that's the natural next extension.
-- `route_cache` table exists in the schema for caching computed journeys but
-  isn't read/written from the frontend yet (writes would typically happen
-  from an Edge Function using the service role key).
-- Fare amounts are flat-rate approximations, not a real fare-matrix API.
+1. **Masuk/Daftar**: Buat akun untuk menyimpan preferensi dan tempat favorit.
+2. **Cari Tujuan**: Gunakan kotak pencarian di Dashboard untuk memilih ke mana Anda pergi.
+3. **Bandingkan Rute**: Pilih dari tiga opsi — *Efficient*, *Cheapest*, atau *Hurry* — di halaman Route Comparison.
+4. **Lacak Perjalanan**: Aktifkan pelacakan langsung dari halaman Route Detail untuk memandu Anda sampai tujuan.
+5. **Bingung mau naik apa?**: Buka **Confused Mode** dan tanyakan langsung — RUTEIN akan menjawab berdasarkan lokasi Anda saat ini.
+
+---
+
+## 🧩 Pembagian Tugas Tim
+
+| Anggota | Fitur yang Dikerjakan |
+|---------|------------------------|
+| **Quan** | Sign Up / Sign In, User Preferences, Profile, Saved Places, Backend & System Architecture, Deployment & Submission |
+| **Syakir** | Landing Page, Transport Schedule, Budget Planner, Confused Mode, Tutorial Penggunaan Web |
+| **Nael** | Interactive Map, Dashboard, Route Comparison, Multi-Transit Routes, Live Disruption, Design System, App Design Mockup |
+
+---
+
+## 📌 Progress & To-Do
+
+- [x] README.md Update — *Quan*
+- [ ] Finish Design System — *Nael*
+- [ ] App Design Mockup — *Nael*
+- [ ] Deployment & Submission — *Quan*
+- [ ] Tutorial Cara Menggunakan Web — *Syakir*
+- [ ] Code Cleanup (hapus catatan AI & minimalkan error) — *Syakir*
+
+---
+
+## 📄 Lisensi
+
+Proyek ini dilisensikan di bawah [MIT License](LICENSE) - lihat file LICENSE untuk detail lebih lanjut.
+
+---
+
+<div align="center">
+
+  **Made with ❤️ by Tim CEO, CTO, CMO for ITECHNO CUP 2026**
+
+</div>
