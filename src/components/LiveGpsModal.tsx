@@ -46,12 +46,16 @@ export default function LiveGpsModal({ waypoints, onClose }: Props) {
   const stopWatchRef = useRef<(() => void) | null>(null);
   const tileConfig = getTileLayerConfig();
 
-  useEffect(() => {
+  const startTracking = () => {
     if (!isGeolocationSupported()) {
       setStatus('error');
-      setError({ type: 'unsupported', message: 'Geolocation is not supported by this browser.' });
+      setError({ type: 'unsupported', message: 'Geolocation tidak didukung oleh browser ini.' });
       return;
     }
+
+    setStatus('requesting');
+    setError(null);
+    stopWatchRef.current?.();
 
     stopWatchRef.current = watchPosition(
       (point, acc) => {
@@ -65,7 +69,10 @@ export default function LiveGpsModal({ waypoints, onClose }: Props) {
         setError(err);
       }
     );
+  };
 
+  useEffect(() => {
+    startTracking();
     return () => {
       stopWatchRef.current?.();
     };
@@ -93,25 +100,65 @@ export default function LiveGpsModal({ waypoints, onClose }: Props) {
     <div style={overlay}>
       <div style={modal} className="card">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-          <h3 style={{ margin: 0 }}>Live journey tracking</h3>
+          <h3 style={{ margin: 0, fontSize: 18 }}>Live Journey Tracking</h3>
           <button onClick={handleClose} style={closeBtn}>✕</button>
         </div>
 
         {status === 'requesting' && (
           <div style={{ padding: '40px 0', textAlign: 'center', color: 'var(--color-text-muted)' }}>
-            Requesting location permission…
+            Meminta izin lokasi GPS…
           </div>
         )}
 
         {status === 'error' && error && (
-          <div style={{ padding: 20 }}>
-            <p style={{ color: 'var(--color-danger)', marginBottom: 4 }}>{errorTitle(error.type)}</p>
-            <p style={{ color: 'var(--color-text-muted)', fontSize: 13 }}>{error.message}</p>
+          <div style={{ padding: '16px 0' }}>
+            <p style={{ color: 'var(--color-danger)', fontWeight: 700, marginBottom: 8, fontSize: 16 }}>{errorTitle(error.type)}</p>
+            <p style={{ color: 'var(--color-text-muted)', fontSize: 13, lineHeight: 1.5, marginBottom: 16 }}>
+              {error.message}
+            </p>
             {error.type === 'permission_denied' && (
-              <p style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>
-                Enable location access for this site in your browser settings, then reopen this screen.
-              </p>
+              <div style={{ background: 'rgba(218, 54, 42, 0.1)', border: '1px solid rgba(218, 54, 42, 0.3)', borderRadius: 10, padding: 14, fontSize: 13, marginBottom: 16, color: 'var(--color-text)' }}>
+                <strong>Cara Mengaktifkan Izin Lokasi di Browser:</strong>
+                <ol style={{ margin: '8px 0 0 0', paddingLeft: 18, lineHeight: 1.6 }}>
+                  <li>Klik ikon gembok/setelan 🔒 di sebelah kiri URL browser (address bar atas).</li>
+                  <li>Ubah menu <strong>Lokasi (Location)</strong> dari <em>Blokir</em> menjadi <strong>Izinkan (Allow)</strong>.</li>
+                  <li>Klik tombol <strong>Coba Lagi</strong> di bawah ini atau refresh halaman.</li>
+                </ol>
+              </div>
             )}
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button
+                type="button"
+                onClick={startTracking}
+                style={{
+                  background: 'var(--color-primary)',
+                  color: '#FFF',
+                  border: 'none',
+                  borderRadius: 8,
+                  padding: '8px 16px',
+                  fontWeight: 600,
+                  fontSize: 13,
+                  cursor: 'pointer',
+                }}
+              >
+                Coba Lagi
+              </button>
+              <button
+                type="button"
+                onClick={handleClose}
+                style={{
+                  background: 'transparent',
+                  color: 'var(--color-text-muted)',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: 8,
+                  padding: '8px 16px',
+                  fontSize: 13,
+                  cursor: 'pointer',
+                }}
+              >
+                Tutup
+              </button>
+            </div>
           </div>
         )}
 
@@ -132,11 +179,11 @@ export default function LiveGpsModal({ waypoints, onClose }: Props) {
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-              <span>Accuracy: {accuracy ? `±${Math.round(accuracy)}m` : '—'}</span>
+              <span>Akurasi GPS: {accuracy ? `±${Math.round(accuracy)}m` : '—'}</span>
               {nextWaypoint ? (
-                <span>Next: {nextWaypoint.label} — {distanceToNext ? `${Math.round(distanceToNext)}m` : '—'}</span>
+                <span>Tujuan Berikutnya: {nextWaypoint.label} — {distanceToNext ? `${Math.round(distanceToNext)}m` : '—'}</span>
               ) : (
-                <span style={{ color: 'var(--color-success)' }}>All waypoints reached ✓</span>
+                <span style={{ color: 'var(--color-success)' }}>Semua titik telah dicapai ✓</span>
               )}
             </div>
           </>
@@ -148,10 +195,10 @@ export default function LiveGpsModal({ waypoints, onClose }: Props) {
 
 function errorTitle(type: GeoServiceError['type']): string {
   switch (type) {
-    case 'permission_denied': return 'Location permission denied';
-    case 'position_unavailable': return 'Location unavailable';
-    case 'timeout': return 'Location request timed out';
-    case 'unsupported': return 'Unsupported browser';
+    case 'permission_denied': return 'Izin Lokasi Di-blokir Browser';
+    case 'position_unavailable': return 'Lokasi Tidak Ditemukan';
+    case 'timeout': return 'Waktu Permintaan Lokasi Habis';
+    case 'unsupported': return 'Browser Tidak Mendukung GPS';
   }
 }
 
@@ -180,11 +227,9 @@ const closeBtn: React.CSSProperties = {
   width: 30,
   height: 30,
   color: 'var(--color-text)',
+  cursor: 'pointer',
 };
 
-// Legacy raster tile config — kept only for components not yet migrated
-// to the OpenFreeMap/MapLibre vector style (see getMapStyle below).
-// TODO: remove once LiveGpsModal.tsx is migrated to MapLibre.
 export function getTileLayerConfig() {
   return {
     url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',

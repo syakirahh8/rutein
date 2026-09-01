@@ -14,9 +14,12 @@ export default function RouteComparison() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const initialDestination = (location.state as { destination?: PlaceResult } | null)?.destination ?? null;
+  
+  const navState = location.state as { origin?: PlaceResult; destination?: PlaceResult } | null;
+  const initialOrigin = navState?.origin ?? null;
+  const initialDestination = navState?.destination ?? null;
 
-  const [origin, setOrigin] = useState<PlaceResult | null>(null);
+  const [origin, setOrigin] = useState<PlaceResult | null>(initialOrigin);
   const [destination, setDestination] = useState<PlaceResult | null>(initialDestination);
   const [result, setResult] = useState<LogicalRouteComparisonResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -24,17 +27,14 @@ export default function RouteComparison() {
   const [usingCurrentLocation, setUsingCurrentLocation] = useState(false);
 
   useEffect(() => {
+    // Only auto-detect GPS for origin if an initial origin wasn't passed via navigation state
+    if (initialOrigin) return;
+
     (async () => {
       setUsingCurrentLocation(true);
       try {
         const point = await getCurrentPosition();
         const place = await reverseGeocode(point.lat, point.lng);
-        // Use the functional form and only fill in origin if the user
-        // hasn't already picked one manually while this was in flight —
-        // getCurrentPosition + reverseGeocode can take several seconds,
-        // long enough for a manual selection to land first. Without this
-        // check, a slow GPS/geocode response silently overwrites whatever
-        // the user just typed and selected.
         setOrigin((current) => current ?? place ?? { ...point, label: 'Current location', address: 'Current location' });
       } catch {
         // Silent: user can still type an origin manually.
@@ -42,7 +42,7 @@ export default function RouteComparison() {
         setUsingCurrentLocation(false);
       }
     })();
-  }, []);
+  }, [initialOrigin]);
 
   useEffect(() => {
     if (origin && destination) {
