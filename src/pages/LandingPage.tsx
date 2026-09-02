@@ -18,6 +18,11 @@ import caraKerjaSvg from '@/assets/images/cara-kerja.svg';
 import merpatiSvg from '@/assets/images/merpati-terbang.svg';
 import trainPeopleSvg from '@/assets/images/train-people.svg';
 
+// --- OFFICIAL REACT BITS COMPONENTS ---
+import { SplitText } from '@/components/ReactBits/SplitText';
+import { BlurText } from '@/components/ReactBits/BlurText';
+import { TiltedCard } from '@/components/ReactBits/TiltedCard';
+
 // --- REACT BITS EXTRAORDINARY HERO ANIMATION COMPONENTS ---
 
 /** 1. Animated Top Train Track SVG (Follows Path Curve & Stations) */
@@ -112,51 +117,7 @@ function AnimatedTrainTrackBottom() {
   );
 }
 
-/** 3. Hero 3D Parallax Map Tilt Component */
-function Hero3DMapCard({ children, className, style }: { children: React.ReactNode; className?: string; style?: React.CSSProperties }) {
-  const [rotate, setRotate] = useState({ x: 0, y: 0 });
-  const cardRef = useRef<HTMLDivElement>(null);
-
-  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!cardRef.current) return;
-    const rect = cardRef.current.getBoundingClientRect();
-    const centerX = rect.left + rect.width / 2;
-    const centerY = rect.top + rect.height / 2;
-    const rotateY = ((e.clientX - centerX) / (rect.width / 2)) * 12;
-    const rotateX = -((e.clientY - centerY) / (rect.height / 2)) * 12;
-    setRotate({ x: rotateX, y: rotateY });
-  };
-
-  const handleMouseLeave = () => {
-    setRotate({ x: 0, y: 0 });
-  };
-
-  return (
-    <div
-      ref={cardRef}
-      className={className}
-      onMouseMove={handleMouseMove}
-      onMouseLeave={handleMouseLeave}
-      style={{
-        ...style,
-        perspective: 1000,
-        transformStyle: 'preserve-3d',
-      }}
-    >
-      <div
-        style={{
-          transform: `perspective(1000px) rotateX(${rotate.x}deg) rotateY(${rotate.y}deg) scale3d(1.015, 1.015, 1.015)`,
-          transition: 'transform 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
-          willChange: 'transform',
-        }}
-      >
-        {children}
-      </div>
-    </div>
-  );
-}
-
-/** 4. Custom Pointer / Cursor (RUTEIN Transit Pointer) */
+/** 3. Custom Pointer / Cursor (RUTEIN Transit Pointer) */
 function CustomTransitCursor() {
   const [pos, setPos] = useState({ x: -100, y: -100 });
   const [trailPos, setTrailPos] = useState({ x: -100, y: -100 });
@@ -229,7 +190,7 @@ function CustomTransitCursor() {
   );
 }
 
-/** 5. Ambient Mesh Glow & Transit Grid BG */
+/** 4. Ambient Mesh Glow & Transit Grid BG */
 function AmbientTransitBackground() {
   return (
     <div
@@ -290,7 +251,7 @@ function AmbientTransitBackground() {
   );
 }
 
-/** 6. Ultra-Smooth Silky Scroll & Refresh Entrance */
+/** 5. Ultra-Smooth Silky Scroll & Refresh Entrance */
 function SmoothReveal({
   children,
   delayMs = 0,
@@ -330,7 +291,7 @@ function SmoothReveal({
       style={{
         ...style,
         opacity: isVisible ? 1 : 0,
-        transform: isVisible ? 'translateY(0)' : 'translateY(20px)',
+        transform: isVisible ? 'translateY(0)' : 'translateY(16px)',
         transition: `opacity 1.1s cubic-bezier(0.16, 1, 0.3, 1) ${delayMs}ms, transform 1.1s cubic-bezier(0.16, 1, 0.3, 1) ${delayMs}ms`,
       }}
     >
@@ -339,7 +300,7 @@ function SmoothReveal({
   );
 }
 
-/** 7. Animated Counter Component (0 -> 5K+) */
+/** 6. Animated Counter Component (0 -> 5K+) */
 function AnimatedCounter({ target = 5000, suffix = '+' }: { target?: number; suffix?: string }) {
   const [count, setCount] = useState(0);
   const ref = useRef<HTMLDivElement>(null);
@@ -387,6 +348,14 @@ export default function LandingPage() {
   const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
+  // Manual scroll restoration on page refresh to strictly lock top position (y = 0)
+  useEffect(() => {
+    if ('scrollRestoration' in window.history) {
+      window.history.scrollRestoration = 'manual';
+    }
+    window.scrollTo(0, 0);
+  }, []);
+
   const scrollToSection = (id: string) => {
     setIsMobileMenuOpen(false);
     const el = document.getElementById(id);
@@ -414,7 +383,7 @@ export default function LandingPage() {
       {/* Unique Custom Transit Cursor */}
       <CustomTransitCursor />
 
-      {/* Clean Keyframes & Styles */}
+      {/* Clean Keyframes & Dynamic Illustrations Animations */}
       <style>{`
         .logo-hover {
           transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), filter 0.25s ease;
@@ -451,12 +420,13 @@ export default function LandingPage() {
         }
 
         .hover-lift-card {
-          transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
+          transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.35s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.35s ease !important;
           cursor: pointer;
         }
         .hover-lift-card:hover {
-          transform: translateY(-4px) !important;
-          box-shadow: 0 12px 28px rgba(218, 54, 42, 0.14) !important;
+          transform: translateY(-8px) scale(1.015) !important;
+          box-shadow: 0 20px 40px rgba(218, 54, 42, 0.16) !important;
+          border-color: rgba(218, 54, 42, 0.4) !important;
         }
 
         /* --- TRAIN PATH FLOW ANIMATION ALONG EXACT SVG CURVES --- */
@@ -478,6 +448,43 @@ export default function LandingPage() {
         @keyframes meshPulse {
           0% { opacity: 0.5; transform: scale(1); }
           100% { opacity: 0.95; transform: scale(1.06); }
+        }
+
+        /* --- GIANT CALLOUT DYNAMIC ANIMATIONS --- */
+        @keyframes birdFloat {
+          0% { transform: translateY(0px) rotate(0deg) scale(1); }
+          50% { transform: translateY(-12px) rotate(-4deg) scale(1.06); }
+          100% { transform: translateY(0px) rotate(0deg) scale(1); }
+        }
+
+        @keyframes trainPeopleFloat {
+          0% { transform: translateY(0px) translateX(0px); }
+          50% { transform: translateY(-8px) translateX(5px); }
+          100% { transform: translateY(0px) translateX(0px); }
+        }
+
+        @keyframes starSpinGlow {
+          0% { transform: rotate(0deg) scale(1); filter: drop-shadow(0 0 0px rgba(218, 54, 42, 0)); }
+          50% { transform: rotate(20deg) scale(1.22); filter: drop-shadow(0 0 16px rgba(218, 54, 42, 0.45)); }
+          100% { transform: rotate(0deg) scale(1); filter: drop-shadow(0 0 0px rgba(218, 54, 42, 0)); }
+        }
+
+        .animated-bird {
+          animation: birdFloat 3.8s ease-in-out infinite;
+          display: inline-block;
+          will-change: transform;
+        }
+
+        .animated-train-people {
+          animation: trainPeopleFloat 4.2s ease-in-out infinite;
+          display: inline-block;
+          will-change: transform;
+        }
+
+        .animated-star-glow {
+          animation: starSpinGlow 3.2s ease-in-out infinite;
+          display: inline-block;
+          will-change: transform, filter;
         }
 
         /* --- FOOTER SOCIAL MEDIA HOVER BOUNCE & GLOW --- */
@@ -766,7 +773,7 @@ export default function LandingPage() {
         )}
       </div>
 
-      {/* --- HERO SECTION --- */}
+      {/* --- HERO SECTION WITH MATCHING 2-LINE TITLE EXACTLY LIKE IMAGE 3 --- */}
       <section
         className="hero-container"
         style={{
@@ -778,9 +785,9 @@ export default function LandingPage() {
         }}
       >
         <div className="hero-grid">
-          {/* Hero Image Column with 3D Parallax Mouse Tilt */}
+          {/* Hero Image Column with Official React Bits TiltedCard */}
           <div className="hero-img-col">
-            <Hero3DMapCard>
+            <TiltedCard maxRotateX={10} maxRotateY={10} scaleOnHover={1.02}>
               <img
                 src={heroImgSvg}
                 alt="Peta Rutein"
@@ -791,10 +798,10 @@ export default function LandingPage() {
                   objectFit: 'contain',
                 }}
               />
-            </Hero3DMapCard>
+            </TiltedCard>
           </div>
 
-          {/* Hero Text Column */}
+          {/* Hero Text Column with Exact Line Formatting like Image 3 */}
           <div className="hero-text-col" style={{ zIndex: 2 }}>
             <h1
               className="font-jockey"
@@ -807,23 +814,35 @@ export default function LandingPage() {
                 letterSpacing: '0.01em',
               }}
             >
-              Navigasi transportasi publik,<br />
-              <span style={{ color: '#DA362A' }}>
-                tanpa ribet.
-              </span>
+              <SplitText
+                text="Navigasi transportasi"
+                delay={25}
+                animationFrom={{ opacity: 0, transform: 'translate3d(0,20px,0)', filter: 'blur(6px)' }}
+                animationTo={{ opacity: 1, transform: 'translate3d(0,0,0)', filter: 'blur(0px)' }}
+              />
+              <br />
+              <SplitText
+                text="publik,"
+                delay={35}
+                animationFrom={{ opacity: 0, transform: 'translate3d(0,20px,0)', filter: 'blur(6px)' }}
+                animationTo={{ opacity: 1, transform: 'translate3d(0,0,0)', filter: 'blur(0px)' }}
+              />
+              {'\u00A0'}
+              <SplitText
+                text="tanpa ribet."
+                delay={45}
+                style={{ color: '#DA362A' }}
+                animationFrom={{ opacity: 0, transform: 'translate3d(0,20px,0)', filter: 'blur(6px)' }}
+                animationTo={{ opacity: 1, transform: 'translate3d(0,0,0)', filter: 'blur(0px)' }}
+              />
             </h1>
 
-            <p
-              style={{
-                fontSize: 'clamp(14px, 1.4vw, 16px)',
-                lineHeight: 1.65,
-                color: '#4A4A4A',
-                marginBottom: 32,
-                maxWidth: 540,
-              }}
-            >
-              <strong style={{ color: '#DA362A' }}>RUTEIN</strong> membantu kamu merencanakan perjalanan dengan transportasi publik berdasarkan waktu, biaya, dan preferensi perjalanan, lalu memandumu secara real-time sampai tujuan.
-            </p>
+            <div style={{ marginBottom: 32, maxWidth: 540, fontSize: 'clamp(14px, 1.4vw, 16px)', lineHeight: 1.65, color: '#4A4A4A' }}>
+              <BlurText
+                text="RUTEIN membantu kamu merencanakan perjalanan dengan transportasi publik berdasarkan waktu, biaya, dan preferensi perjalanan, lalu memandumu secara real-time sampai tujuan."
+                delay={25}
+              />
+            </div>
 
             {/* Main Action Button with Shimmer Beam */}
             <div style={{ marginBottom: 36 }}>
@@ -983,24 +1002,15 @@ export default function LandingPage() {
           zIndex: 2,
         }}
       >
-        {/* Header Row */}
-        <SmoothReveal
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            flexWrap: 'wrap',
-            gap: 24,
-            marginBottom: 48,
-          }}
-        >
+        {/* Header Row (Title LEFT, 5K+ Badge RIGHT on Desktop, Column Stack on Mobile) */}
+        <SmoothReveal className="tentang-header-row">
           {/* Big Red Location Pin + Title */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
-            <img src={locationSvg} alt="Location Pin" style={{ height: 68, width: 'auto', objectFit: 'contain' }} />
+            <img src={locationSvg} alt="Location Pin" style={{ height: 68, width: 'auto', objectFit: 'contain', flexShrink: 0 }} />
             <h2
               className="font-jockey"
               style={{
-                fontSize: 'clamp(32px, 4.2vw, 52px)',
+                fontSize: 'clamp(30px, 4.2vw, 52px)',
                 lineHeight: 1.05,
                 fontWeight: 900,
                 color: '#1E1E1E',
@@ -1013,18 +1023,19 @@ export default function LandingPage() {
             </h2>
           </div>
 
-          {/* 5K+ Stats Card Badge */}
+          {/* 5K+ Stats Card Badge (Anchored Right) */}
           <div
             className="hover-lift-card"
             style={{
               background: '#FFFFFF',
               border: '1.5px solid #E5D5C5',
-              borderRadius: 16,
-              padding: '14px 28px',
+              borderRadius: 18,
+              padding: '14px 26px',
               display: 'flex',
               alignItems: 'center',
               gap: 16,
-              boxShadow: '0 4px 16px rgba(0,0,0,0.04)',
+              boxShadow: '0 6px 20px rgba(0,0,0,0.04)',
+              flexShrink: 0,
             }}
           >
             <div
@@ -1037,13 +1048,14 @@ export default function LandingPage() {
                 alignItems: 'center',
                 justifyContent: 'center',
                 padding: 6,
+                flexShrink: 0,
               }}
             >
               <img src={locationSvg} alt="Pin" style={{ height: '100%', width: 'auto', objectFit: 'contain' }} />
             </div>
             <div>
               <AnimatedCounter target={5000} suffix="+" />
-              <div style={{ fontSize: 13, color: '#555555', fontWeight: 700, fontFamily: 'var(--font-inter)' }}>
+              <div style={{ fontSize: 13, color: '#555555', fontWeight: 700, fontFamily: 'var(--font-inter)', whiteSpace: 'nowrap' }}>
                 Rute Transportasi
                 <br />
                 Terhubung
@@ -1052,104 +1064,116 @@ export default function LandingPage() {
           </div>
         </SmoothReveal>
 
-        {/* 3 Cards Grid */}
+        {/* 3 Strictly Equal Sized Feature Cards Grid */}
         <div className="tentang-cards-grid">
           {/* Card 1: Transit Lebih Mudah */}
-          <SmoothReveal delayMs={100}>
-            <div
-              className="hover-lift-card"
-              style={{
-                background: '#FFFFFF',
-                border: '1.5px solid #E5D5C5',
-                borderRadius: 20,
-                padding: '32px 24px',
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'space-between',
-                boxShadow: '0 4px 16px rgba(0,0,0,0.03)',
-                height: '100%',
-              }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 180 }}>
-                <img src={tentang1Svg} alt="Transit Lebih Mudah" style={{ width: '100%', maxHeight: 170, objectFit: 'contain' }} />
+          <SmoothReveal delayMs={100} style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+            <TiltedCard maxRotateX={8} maxRotateY={8} scaleOnHover={1.02} style={{ height: '100%', display: 'flex', flexDirection: 'column', flex: 1 }}>
+              <div
+                className="hover-lift-card"
+                style={{
+                  background: '#FFFFFF',
+                  border: '1.5px solid #E5D5C5',
+                  borderRadius: 24,
+                  padding: '38px 28px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between',
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.04)',
+                  minHeight: 380,
+                  height: '100%',
+                  boxSizing: 'border-box',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 210, flexShrink: 0 }}>
+                  <img src={tentang1Svg} alt="Transit Lebih Mudah" style={{ width: '100%', maxHeight: 195, height: 'auto', objectFit: 'contain' }} />
+                </div>
+                <div style={{ marginTop: 28, textAlign: 'center', flexGrow: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                  <h3 className="font-jockey" style={{ fontSize: 26, color: '#1E1E1E', margin: '0 0 12px 0', lineHeight: 1.15, minHeight: 62, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    Transit lebih mudah
+                  </h3>
+                  <p style={{ fontSize: 15, color: '#666666', lineHeight: 1.65, margin: 0, fontFamily: 'var(--font-inter)' }}>
+                    Gabungkan beberapa moda transportasi
+                    <br />
+                    publik dalam satu perjalanan
+                  </p>
+                </div>
               </div>
-              <div style={{ marginTop: 24, textAlign: 'center' }}>
-                <h3 className="font-jockey" style={{ fontSize: 24, color: '#1E1E1E', margin: '0 0 10px 0' }}>
-                  Transit lebih mudah
-                </h3>
-                <p style={{ fontSize: 14, color: '#666666', lineHeight: 1.6, margin: 0, fontFamily: 'var(--font-inter)' }}>
-                  Gabungkan beberapa moda transportasi
-                  <br />
-                  publik dalam satu perjalanan
-                </p>
-              </div>
-            </div>
+            </TiltedCard>
           </SmoothReveal>
 
           {/* Card 2: Bandingkan Sebelum Berangkat */}
-          <SmoothReveal delayMs={200}>
-            <div
-              className="hover-lift-card"
-              style={{
-                background: '#FFFFFF',
-                border: '1.5px solid #E5D5C5',
-                borderRadius: 20,
-                padding: '32px 24px',
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'space-between',
-                boxShadow: '0 4px 16px rgba(0,0,0,0.03)',
-                height: '100%',
-              }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 180 }}>
-                <img src={tentang2Svg} alt="Bandingkan Sebelum Berangkat" style={{ width: '100%', maxHeight: 170, objectFit: 'contain' }} />
+          <SmoothReveal delayMs={200} style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+            <TiltedCard maxRotateX={8} maxRotateY={8} scaleOnHover={1.02} style={{ height: '100%', display: 'flex', flexDirection: 'column', flex: 1 }}>
+              <div
+                className="hover-lift-card"
+                style={{
+                  background: '#FFFFFF',
+                  border: '1.5px solid #E5D5C5',
+                  borderRadius: 24,
+                  padding: '38px 28px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between',
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.04)',
+                  minHeight: 380,
+                  height: '100%',
+                  boxSizing: 'border-box',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 210, flexShrink: 0 }}>
+                  <img src={tentang2Svg} alt="Bandingkan Sebelum Berangkat" style={{ width: '100%', maxHeight: 195, height: 'auto', objectFit: 'contain' }} />
+                </div>
+                <div style={{ marginTop: 28, textAlign: 'center', flexGrow: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                  <h3 className="font-jockey" style={{ fontSize: 26, color: '#1E1E1E', margin: '0 0 12px 0', lineHeight: 1.15, minHeight: 62, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    Bandingkan sebelum
+                    <br />
+                    berangkat
+                  </h3>
+                  <p style={{ fontSize: 15, color: '#666666', lineHeight: 1.65, margin: 0, fontFamily: 'var(--font-inter)' }}>
+                    Lihat waktu, biaya, dan jumlah transit
+                    <br />
+                    sebelum memilih perjalanan
+                  </p>
+                </div>
               </div>
-              <div style={{ marginTop: 24, textAlign: 'center' }}>
-                <h3 className="font-jockey" style={{ fontSize: 24, color: '#1E1E1E', margin: '0 0 10px 0' }}>
-                  Bandingkan sebelum
-                  <br />
-                  berangkat
-                </h3>
-                <p style={{ fontSize: 14, color: '#666666', lineHeight: 1.6, margin: 0, fontFamily: 'var(--font-inter)' }}>
-                  Lihat waktu, biaya, dan jumlah transit
-                  <br />
-                  sebelum memilih perjalanan
-                </p>
-              </div>
-            </div>
+            </TiltedCard>
           </SmoothReveal>
 
           {/* Card 3: Tahu Kondisi Perjalanan */}
-          <SmoothReveal delayMs={300}>
-            <div
-              className="tentang-card-3 hover-lift-card"
-              style={{
-                background: '#FFFFFF',
-                border: '1.5px solid #E5D5C5',
-                borderRadius: 20,
-                padding: '32px 24px',
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'space-between',
-                boxShadow: '0 4px 16px rgba(0,0,0,0.03)',
-                height: '100%',
-              }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 180 }}>
-                <img src={tentang3Svg} alt="Tahu Kondisi Perjalanan" style={{ width: '100%', maxHeight: 170, objectFit: 'contain' }} />
+          <SmoothReveal delayMs={300} style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+            <TiltedCard maxRotateX={8} maxRotateY={8} scaleOnHover={1.02} style={{ height: '100%', display: 'flex', flexDirection: 'column', flex: 1 }}>
+              <div
+                className="tentang-card-3 hover-lift-card"
+                style={{
+                  background: '#FFFFFF',
+                  border: '1.5px solid #E5D5C5',
+                  borderRadius: 24,
+                  padding: '38px 28px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between',
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.04)',
+                  minHeight: 380,
+                  height: '100%',
+                  boxSizing: 'border-box',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 210, flexShrink: 0 }}>
+                  <img src={tentang3Svg} alt="Tahu Kondisi Perjalanan" style={{ width: '100%', maxHeight: 195, height: 'auto', objectFit: 'contain' }} />
+                </div>
+                <div style={{ marginTop: 28, textAlign: 'center', flexGrow: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                  <h3 className="font-jockey" style={{ fontSize: 26, color: '#1E1E1E', margin: '0 0 12px 0', lineHeight: 1.15, minHeight: 62, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    Tahu Kondisi Perjalanan
+                  </h3>
+                  <p style={{ fontSize: 15, color: '#666666', lineHeight: 1.65, margin: 0, fontFamily: 'var(--font-inter)' }}>
+                    Pantau jadwal dan informasi perjalanan
+                    <br />
+                    sebelum kamu berangkat
+                  </p>
+                </div>
               </div>
-              <div style={{ marginTop: 24, textAlign: 'center' }}>
-                <h3 className="font-jockey" style={{ fontSize: 24, color: '#1E1E1E', margin: '0 0 10px 0', whiteSpace: 'nowrap' }}>
-                  Tahu Kondisi Perjalanan
-                </h3>
-                <p style={{ fontSize: 14, color: '#666666', lineHeight: 1.6, margin: 0, fontFamily: 'var(--font-inter)' }}>
-                  Pantau jadwal dan informasi perjalanan
-                  <br />
-                  sebelum kamu berangkat
-                </p>
-              </div>
-            </div>
+            </TiltedCard>
           </SmoothReveal>
         </div>
       </section>
@@ -1346,42 +1370,67 @@ export default function LandingPage() {
           </div>
         </SmoothReveal>
 
-        {/* Giant Footer Callout Heading & Bird */}
-        <SmoothReveal delayMs={150} style={{ textAlign: 'center', padding: '20px 0 50px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14, flexWrap: 'wrap' }}>
-            <img
-              src={merpatiSvg}
-              alt="Merpati Terbang"
-              style={{ height: 'clamp(36px, 6vw, 82px)', width: 'auto', objectFit: 'contain' }}
-            />
-            <span className="font-jockey" style={{ fontSize: 'clamp(44px, 8vw, 102px)', color: '#DA362A', lineHeight: 0.95 }}>
-              Rutein
+        {/* Giant Footer Callout Heading & Flying Illustrations Section */}
+        <SmoothReveal delayMs={150} style={{ textAlign: 'center', padding: '30px 0 60px' }}>
+          {/* Row 1: Merpati Flying Bird + Red "Rutein" (With SplitText) */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 18, flexWrap: 'wrap', marginBottom: -4 }}>
+            <span className="animated-bird">
+              <img
+                src={merpatiSvg}
+                alt="Merpati Terbang"
+                style={{ height: 'clamp(42px, 6.5vw, 88px)', width: 'auto', objectFit: 'contain' }}
+              />
+            </span>
+            <span className="font-jockey" style={{ fontSize: 'clamp(46px, 8.5vw, 108px)', color: '#DA362A', lineHeight: 0.95 }}>
+              <SplitText
+                text="Rutein"
+                delay={50}
+                animationFrom={{ opacity: 0, transform: 'translate3d(0, 30px, 0)', filter: 'blur(8px)' }}
+                animationTo={{ opacity: 1, transform: 'translate3d(0, 0, 0)', filter: 'blur(0px)' }}
+              />
             </span>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14, marginTop: -4, flexWrap: 'wrap' }}>
-            <span className="font-jockey" style={{ fontSize: 'clamp(40px, 7.5vw, 96px)', color: '#1E1E1E', lineHeight: 0.95 }}>
-              perjalananmu
+          {/* Row 2: "perjalananmu" (With BlurText) + Animated Train People */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 18, flexWrap: 'wrap', marginBottom: -4 }}>
+            <span className="font-jockey" style={{ fontSize: 'clamp(42px, 8vw, 100px)', color: '#1E1E1E', lineHeight: 0.95 }}>
+              <BlurText
+                text="perjalananmu"
+                delay={40}
+              />
             </span>
-            <img
-              src={trainPeopleSvg}
-              alt="Train People"
-              style={{ height: 'clamp(32px, 5.5vw, 70px)', width: 'auto', objectFit: 'contain' }}
-            />
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14, marginTop: -4, flexWrap: 'wrap' }}>
-            <img
-              src={bintangSvg}
-              alt="Bintang"
-              style={{ height: 'clamp(26px, 4.5vw, 56px)', width: 'auto', objectFit: 'contain' }}
-            />
-            <span className="font-jockey" style={{ fontSize: 'clamp(40px, 7.5vw, 96px)', color: '#1E1E1E', lineHeight: 0.95 }}>
-              biar <span style={{ color: '#DA362A', fontStyle: 'italic' }}>gampang.</span>
+            <span className="animated-train-people">
+              <img
+                src={trainPeopleSvg}
+                alt="Train People"
+                style={{ height: 'clamp(36px, 6vw, 76px)', width: 'auto', objectFit: 'contain' }}
+              />
             </span>
           </div>
 
-          <div style={{ marginTop: 36 }}>
+          {/* Row 3: Animated Glowing Star + "biar gampang." (With SplitText) */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 18, flexWrap: 'wrap' }}>
+            <span className="animated-star-glow">
+              <img
+                src={bintangSvg}
+                alt="Bintang"
+                style={{ height: 'clamp(30px, 5vw, 62px)', width: 'auto', objectFit: 'contain' }}
+              />
+            </span>
+            <span className="font-jockey" style={{ fontSize: 'clamp(42px, 8vw, 100px)', color: '#1E1E1E', lineHeight: 0.95 }}>
+              biar{' '}
+              <SplitText
+                text="gampang."
+                delay={60}
+                style={{ color: '#DA362A', fontStyle: 'italic' }}
+                animationFrom={{ opacity: 0, transform: 'translate3d(0, 30px, 0)', filter: 'blur(8px)' }}
+                animationTo={{ opacity: 1, transform: 'translate3d(0, 0, 0)', filter: 'blur(0px)' }}
+              />
+            </span>
+          </div>
+
+          {/* Action CTA Button */}
+          <div style={{ marginTop: 42 }}>
             <button
               onClick={() => navigate(user ? '/dashboard' : '/login')}
               className="font-jockey shimmer-cta-btn"
@@ -1389,12 +1438,12 @@ export default function LandingPage() {
                 background: '#DA362A',
                 color: '#FFFFFF',
                 border: 'none',
-                borderRadius: 12,
-                padding: '16px 44px',
-                fontSize: 22,
+                borderRadius: 14,
+                padding: '18px 48px',
+                fontSize: 23,
                 letterSpacing: '0.02em',
                 cursor: 'pointer',
-                boxShadow: '0 6px 20px rgba(218, 54, 42, 0.35)',
+                boxShadow: '0 8px 24px rgba(218, 54, 42, 0.4)',
               }}
             >
               Mulai Perjalanan

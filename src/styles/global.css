@@ -216,7 +216,7 @@ button {
     padding: 16px 20px 0px !important;
   }
   .hero-container {
-    padding-top: 10px !important;
+    padding-top: 28px !important;
     padding-left: 16px !important;
     padding-right: 16px !important;
   }
@@ -238,7 +238,7 @@ button {
     justify-content: center;
     margin-bottom: 12px !important; /* Natural moderate gap */
     padding-right: 0 !important;
-    transform: translateX(10px) !important;
+    transform: translateX(38px) !important;
   }
   .hero-img-col img {
     max-width: 320px !important; /* Constrain image size on tablet/mobile so it's not giant! */
@@ -353,3 +353,24 @@ button {
     max-width: 100% !important;
   }
 }
+
+/* Section 2 ("Tentang") Header Row Layout */
+.tentang-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 48px;
+  width: 100%;
+}
+
+@media (max-width: 768px) {
+  .tentang-header-row {
+    flex-direction: column !important;
+    align-items: center !important;
+    text-align: center !important;
+    gap: 16px !important;
+    margin-bottom: 32px !important;
+  }
+}
+
