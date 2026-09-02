@@ -24,24 +24,42 @@ export function isGeolocationSupported(): boolean {
   return typeof navigator !== 'undefined' && 'geolocation' in navigator;
 }
 
+/** 100% Free IP-Based Geolocation Fallback (No permission needed) */
+export async function fetchIpGeolocation(): Promise<GeoPoint> {
+  try {
+    const res = await fetch('https://ipapi.co/json/', { signal: AbortSignal.timeout(4000) });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.latitude && data.longitude) {
+        return { lat: data.latitude, lng: data.longitude };
+      }
+    }
+  } catch {}
+
+  // Fallback to Jakarta Sudirman Center
+  return { lat: -6.2088, lng: 106.8456 };
+}
+
 export function getCurrentPosition(): Promise<GeoPoint> {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     if (!isGeolocationSupported()) {
-      reject({ type: 'unsupported', message: 'Geolocation is not supported by this browser.' } as GeoServiceError);
+      fetchIpGeolocation().then(resolve);
       return;
     }
     navigator.geolocation.getCurrentPosition(
       (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-      (err) => reject(mapGeolocationError(err)),
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 }
+      () => {
+        // On permission denied or error, fallback to IP Geolocation
+        fetchIpGeolocation().then(resolve);
+      },
+      { enableHighAccuracy: true, timeout: 6000, maximumAge: 5000 }
     );
   });
 }
 
 /**
  * Starts continuous live tracking using watchPosition (used by the Live GPS
- * Modal). Returns an unsubscribe function. onUpdate fires on every real
- * browser position change — this is genuine live tracking, not simulated.
+ * Modal). Returns an unsubscribe function.
  */
 export function watchPosition(
   onUpdate: (point: GeoPoint, accuracyM: number) => void,

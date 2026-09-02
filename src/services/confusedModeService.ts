@@ -3,20 +3,6 @@ import type { ConfusedModeAIContext } from '@/types/confusedMode.types';
 import type { Disruption, UserPreferences } from '@/types/database.types';
 import type { GeoPoint } from '@/types/domain.types';
 
-// ------------------------------------------------------------------
-// LEGACY TYPES — kept exported for backward compatibility in case any
-// other file in the app still imports them (not confirmed either way,
-// since I only have visibility into the Confused Mode call chain). They
-// are no longer used by sendConfusedModeMessage below — the actual
-// context contract is now ConfusedModeAIContext from
-// @/types/confusedMode.types.ts, which is what
-// buildConfusedModeAIContext() produces and what the Edge Function now
-// parses. If you find another caller building a context object shaped
-// like these, it needs to move to ConfusedModeAIContext too — worth a
-// project-wide grep for `sendConfusedModeMessage` to confirm there isn't
-// one.
-// ------------------------------------------------------------------
-
 export interface ConfusedModeLocation {
   latitude: number;
   longitude: number;
@@ -42,7 +28,6 @@ export interface NearbyTransport {
   longitude?: number;
 }
 
-/** @deprecated superseded by ConfusedModeAIContext — kept as a type alias for compatibility. */
 export type ConfusedModeContext = ConfusedModeAIContext;
 
 export interface ConfusedModeMessage {
@@ -51,11 +36,11 @@ export interface ConfusedModeMessage {
 }
 
 export const SUGGESTED_EMERGENCY_QUESTIONS: string[] = [
-  "I don't know where I am.",
-  'Which transportation should I take?',
-  'How do I get home?',
-  'I missed my bus.',
-  "I'm lost.",
+  "Saya ada di mana sekarang?",
+  "Bagaimana cara pulang ke Rumah?",
+  "Rute terbaik ke Kantor / Sekolah",
+  "Cari rute paling cepat ke tujuan",
+  "Cari rute paling hemat",
 ];
 
 export async function sendConfusedModeMessage(
@@ -65,6 +50,59 @@ export async function sendConfusedModeMessage(
   reply: string;
   implemented: boolean;
 }> {
+  // 1. Priority 1: Direct Google Gemini 1.5/2.0 Flash REST API Client Connection
+  const geminiApiKey = import.meta.env.VITE_GEMINI_API_KEY;
+
+  if (geminiApiKey && geminiApiKey.trim().length > 0) {
+    try {
+      const systemInstruction = `Kamu adalah RUTEIN AI Assistant, asisten navigasi transportasi publik di Indonesia yang ramah, natural, dan sangat ringkas.
+
+ATURAN PENTING GAYA BAHASA & KONTEN:
+1. Gunakan Bahasa Indonesia yang sangat alami, santun, dan tidak kaku. Jangan pernah gunakan frasa terjemahan kaku seperti "Schedule (Jadwal) fitur di Rutein...". Gunakan frasa alami seperti: "Fitur Jadwal (Schedule) di RUTEIN berfungsi untuk..."
+2. JANGAN MENGHALUSINASI FITUR YANG TIDAK ADA. Fitur yang benar-benar ada di RUTEIN saat ini adalah:
+   - **Peta Interaktif & Perbandingan Rute**: Mencari rute tercepat, termurah, dan paling seimbang.
+   - **Budget Planner**: Merencanakan perjalanan sesuai kantong harian komuter.
+   - **Jadwal (Schedule)**: Melihat daftar stasiun/halte, hitung mundur keberangkatan terdekat (real-time countdown), tarif, dan jam operasional harian.
+   - **Confused Mode**: Asisten AI untuk membantu pengguna yang bingung memilih transportasi.
+3. Jawablah secara SINGKAT, PADAT, dan RINGKAS (maksimal 2-3 poin to-the-point). Hindari paragraf penutup yang panjang dan berulang-ulang.
+
+DATA KONTEKS PENGGUNA SAAT INI:
+- Lokasi GPS: ${context.currentLocation ? `${context.currentLocation.address || 'Koordinat'} (${context.currentLocation.latitude}, ${context.currentLocation.longitude})` : 'Belum terhubung'}
+- Halte/Stasiun Terdekat: ${context.nearbyTransport.map(t => `${t.name} (${t.type}, ${t.distanceMeters}m)`).join(', ') || 'Tidak ada'}
+- Tempat Terdekat: ${context.nearbyPlaces.map(p => p.name).join(', ') || 'Tidak ada'}
+- Gangguan Layanan Aktif: ${context.activeDisruptions.map(d => d.title).join(', ') || 'Tidak ada'}
+- Rute Terhitung: ${context.navigationResult ? `Ke ${context.navigationResult.destinationLabel} via ${context.navigationResult.bestRouteLabel} (Durasi ~${Math.round(context.navigationResult.bestRouteDurationS / 60)} min, Tarif Rp${context.navigationResult.bestRouteCostIdr})` : 'Tidak ada'}`;
+
+      const contents = [
+        { role: 'user', parts: [{ text: systemInstruction }] },
+        ...messages.map((m) => ({
+          role: m.role === 'user' ? 'user' : 'model',
+          parts: [{ text: m.content }],
+        })),
+      ];
+
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey.trim()}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contents }),
+        }
+      );
+
+      if (res.ok) {
+        const json = await res.json();
+        const textReply = json?.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (textReply) {
+          return { reply: textReply, implemented: true };
+        }
+      }
+    } catch (geminiError) {
+      console.warn('Gemini Direct API call failed, falling back to Supabase/Local engine:', geminiError);
+    }
+  }
+
+  // 2. Priority 2: Supabase Edge Function 'confused-mode'
   const { data, error } = await supabase.functions.invoke('confused-mode', {
     body: {
       messages,
@@ -80,19 +118,19 @@ export async function sendConfusedModeMessage(
 
       return {
         reply:
-          errorData.reply ?? errorData.error ?? 'The AI assistant encountered a server error.',
+          errorData.reply ?? errorData.error ?? 'Asisten AI mengalami sedikit kendala server. Silakan coba lagi.',
         implemented: false,
       };
     } catch {
       return {
-        reply: 'The AI assistant encountered a server error.',
+        reply: 'Asisten AI mengalami sedikit kendala server. Silakan coba lagi.',
         implemented: false,
       };
     }
   }
 
   return {
-    reply: data?.reply ?? 'No response received from the assistant.',
+    reply: data?.reply ?? 'Tidak ada tanggapan yang diterima dari asisten.',
     implemented: data?.implemented ?? true,
   };
 }

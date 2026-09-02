@@ -61,13 +61,16 @@ export const transportIcons: Record<IndonesiaTransportType, React.ComponentType<
 };
 
 const PRESET_BUDGETS = [5000, 10000, 15000, 20000, 30000];
-const LOCAL_STORAGE_KEY = 'rutein_applied_budget';
-const LOCAL_STORAGE_DESTINATION_KEY = 'rutein_budget_destination';
-const LOCAL_STORAGE_ORIGIN_KEY = 'rutein_budget_origin';
 
 export default function BudgetPlanner() {
   const { user } = useAuth();
   const navigate = useNavigate();
+
+  // Dynamic user-isolated LocalStorage keys
+  const userKey = user ? user.id : 'guest';
+  const localStorageBudgetKey = `rutein_applied_budget_${userKey}`;
+  const localStorageDestKey = `rutein_budget_destination_${userKey}`;
+  const localStorageOrigKey = `rutein_budget_origin_${userKey}`;
 
   // Location state
   const [origin, setOriginState] = useState<PlaceResult | null>(null);
@@ -85,30 +88,30 @@ export default function BudgetPlanner() {
   const [calculatedCandidates, setCalculatedCandidates] = useState<BudgetRouteCandidate[] | null>(null);
   const [isCalculatingRoutes, setIsCalculatingRoutes] = useState<boolean>(false);
 
-  // Set origin and persist to LocalStorage
+  // Set origin and persist to LocalStorage per user
   const setOrigin = (place: PlaceResult | null) => {
     setOriginState(place);
     if (place) {
-      localStorage.setItem(LOCAL_STORAGE_ORIGIN_KEY, JSON.stringify(place));
+      localStorage.setItem(localStorageOrigKey, JSON.stringify(place));
     } else {
-      localStorage.removeItem(LOCAL_STORAGE_ORIGIN_KEY);
+      localStorage.removeItem(localStorageOrigKey);
     }
   };
 
-  // Set destination and persist to LocalStorage
+  // Set destination and persist to LocalStorage per user
   const setDestination = (place: PlaceResult | null) => {
     setDestinationState(place);
     if (place) {
-      localStorage.setItem(LOCAL_STORAGE_DESTINATION_KEY, JSON.stringify(place));
+      localStorage.setItem(localStorageDestKey, JSON.stringify(place));
     } else {
-      localStorage.removeItem(LOCAL_STORAGE_DESTINATION_KEY);
+      localStorage.removeItem(localStorageDestKey);
     }
   };
 
-  // Auto-detect current GPS location for origin & load saved places & restore saved locations
+  // Restore saved state & auto-detect location per user
   useEffect(() => {
-    // Restore saved destination from LocalStorage
-    const savedDest = localStorage.getItem(LOCAL_STORAGE_DESTINATION_KEY);
+    // 1. Restore saved destination for current user
+    const savedDest = localStorage.getItem(localStorageDestKey);
     if (savedDest) {
       try {
         const parsed = JSON.parse(savedDest);
@@ -116,10 +119,12 @@ export default function BudgetPlanner() {
           setDestinationState(parsed);
         }
       } catch {}
+    } else {
+      setDestinationState(null);
     }
 
-    // Restore saved origin from LocalStorage or fallback to GPS
-    const savedOrig = localStorage.getItem(LOCAL_STORAGE_ORIGIN_KEY);
+    // 2. Restore saved origin for current user or fallback to GPS
+    const savedOrig = localStorage.getItem(localStorageOrigKey);
     let hasSavedOrigin = false;
     if (savedOrig) {
       try {
@@ -138,7 +143,7 @@ export default function BudgetPlanner() {
           const place = await reverseGeocode(point.lat, point.lng);
           const detected = place ?? { ...point, label: 'Lokasi Terkini Saya', address: 'Lokasi Terkini Saya' };
           setOriginState(detected);
-          localStorage.setItem(LOCAL_STORAGE_ORIGIN_KEY, JSON.stringify(detected));
+          localStorage.setItem(localStorageOrigKey, JSON.stringify(detected));
         })
         .catch(() => {
           const defaultOrigin = { lat: -6.2088, lng: 106.8456, label: 'Stasiun Sudirman (Default)', address: 'Sudirman, Jakarta' };
@@ -147,8 +152,8 @@ export default function BudgetPlanner() {
         .finally(() => setIsDetectingLocation(false));
     }
 
-    // Priority 1: Check LocalStorage first for current user applied budget
-    const savedLocal = localStorage.getItem(LOCAL_STORAGE_KEY);
+    // 3. Priority 1: Check LocalStorage first for current user applied budget
+    const savedLocal = localStorage.getItem(localStorageBudgetKey);
     let hasLocalBudget = false;
     if (savedLocal) {
       const parsed = parseInt(savedLocal, 10);
@@ -159,29 +164,27 @@ export default function BudgetPlanner() {
       }
     }
 
-    // Priority 2: Only fallback to Supabase if LocalStorage has no saved budget
+    // Priority 2: Fetch last saved budget plan from Supabase backend for user
     if (user) {
       listSavedPlaces(user.id).then(setSavedPlaces).catch(() => {});
 
-      if (!hasLocalBudget) {
-        listBudgetPlans(user.id)
-          .then((plans) => {
-            if (plans && plans.length > 0) {
-              const latest = plans[0];
-              if (latest.estimated_daily_cost) {
-                const dailyBudget = Math.round(latest.estimated_daily_cost / (latest.trips_per_period || 2));
-                if (dailyBudget > 0) {
-                  setInputBudget(dailyBudget);
-                  setAppliedBudget(dailyBudget);
-                  localStorage.setItem(LOCAL_STORAGE_KEY, dailyBudget.toString());
-                }
+      listBudgetPlans(user.id)
+        .then((plans) => {
+          if (plans && plans.length > 0) {
+            const latest = plans[0];
+            if (!hasLocalBudget && latest.estimated_daily_cost) {
+              const dailyBudget = Math.round(latest.estimated_daily_cost / (latest.trips_per_period || 2));
+              if (dailyBudget > 0) {
+                setInputBudget(dailyBudget);
+                setAppliedBudget(dailyBudget);
+                localStorage.setItem(localStorageBudgetKey, dailyBudget.toString());
               }
             }
-          })
-          .catch(() => {});
-      }
+          }
+        })
+        .catch(() => {});
     }
-  }, [user]);
+  }, [user, localStorageBudgetKey, localStorageDestKey, localStorageOrigKey]);
 
   // Recalculate real routes when origin and destination are set
   useEffect(() => {
@@ -250,10 +253,10 @@ export default function BudgetPlanner() {
     return calculateLongTermProjection(selectedCost);
   }, [selectedCost]);
 
-  // Persist budget state to LocalStorage and Supabase backend
+  // Persist budget state to LocalStorage (per user) and Supabase backend
   const persistBudgetState = async (val: number) => {
     setAppliedBudget(val);
-    localStorage.setItem(LOCAL_STORAGE_KEY, val.toString());
+    localStorage.setItem(localStorageBudgetKey, val.toString());
     window.dispatchEvent(new Event('rutein_budget_changed'));
 
     setJustApplied(true);
