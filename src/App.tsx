@@ -7,6 +7,7 @@ import NavBar from '@/components/NavBar';
 import LandingPage from '@/pages/LandingPage';
 import { Login, TransportPreference, ProfileSelect } from '@/pages/Auth';
 import Dashboard from '@/pages/Dashboard';
+import MapDashboard from '@/pages/MapDashboard';
 import MapPage from '@/pages/MapPage';
 import RouteComparison from '@/pages/RouteComparison';
 import RouteDetail from '@/pages/RouteDetail';
@@ -32,7 +33,7 @@ export default function App() {
     <AuthProvider>
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<LandingPage />} />
+          <Route path="/" element={<ProtectedRoute><MapDashboard /></ProtectedRoute>} />
           <Route path="/login" element={<Login />} />
           <Route path="/onboarding/transport" element={<ProtectedRoute><TransportPreference /></ProtectedRoute>} />
 <Route path="/onboarding/profile" element={<ProtectedRoute><ProfileSelect /></ProtectedRoute>} />
