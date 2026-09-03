@@ -29,6 +29,30 @@
   --radius-lg: 22px;
 
   --shadow-card: 0 8px 24px rgba(0, 0, 0, 0.28);
+
+  /* Map Dashboard — sidebar (dari palette yang diberikan, tanpa warna dark/navy) */
+  --color-sidebar: #C94535;
+  --color-sidebar-hover: rgba(251, 244, 238, 0.10);
+  --color-sidebar-active-bg: #FBF4EE;
+  --color-sidebar-text: #FFFFFF;
+  --color-sidebar-text-muted: #C4BBBB;
+
+  /* Map Dashboard — floating panels di atas basemap (terang) */
+  --shadow-floating: 0 12px 32px rgba(0, 0, 0, 0.4);
+
+  /* Map Dashboard — z-index scale, jangan ada lagi z-index angka manual di komponen baru */
+  --z-map-controls: 10;
+  --z-panel: 20;
+  --z-popover: 30;
+  --z-modal: 40;
+
+  /* Map Dashboard — ukuran komponen tetap */
+  --sidebar-width: 260px;
+  --sidebar-width-collapsed: 64px;
+  --popover-width: 280px;
+  --confused-card-width: 380px;
+  --confused-card-max-height: calc(100vh - 140px);
+  --point-control-size: 40px;
 }
 
 /* --- Font Utility Classes --- */
