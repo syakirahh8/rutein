@@ -19,13 +19,13 @@ const WAYPOINT_ARRIVAL_RADIUS_M = 60;
 
 const userIcon = new L.DivIcon({
   className: '',
-  html: '<div style="width:16px;height:16px;border-radius:50%;background:#3D8BFD;border:3px solid #fff;box-shadow:0 0 0 4px rgba(61,139,253,0.3);"></div>',
+  html: '<div style="width:16px;height:16px;border-radius:50%;background:#DA362A;border:3px solid #fff;box-shadow:0 0 0 4px rgba(218,54,42,0.3);"></div>',
   iconSize: [16, 16],
 });
 
 const waypointIcon = new L.DivIcon({
   className: '',
-  html: '<div style="width:12px;height:12px;border-radius:50%;background:#2DD4BF;border:2px solid #0B1220;"></div>',
+  html: '<div style="width:12px;height:12px;border-radius:50%;background:#0D9488;border:2px solid #FFFFFF;box-shadow:0 1px 4px rgba(0,0,0,0.25);"></div>',
   iconSize: [12, 12],
 });
 

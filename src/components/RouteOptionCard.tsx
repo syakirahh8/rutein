@@ -1,8 +1,9 @@
 import React from 'react';
 import type { RouteOption } from '@/types/domain.types';
+import type { LogicalRouteOption } from '@/services/routeService';
 
 interface Props {
-  option: RouteOption;
+  option: RouteOption | LogicalRouteOption;
   onSelect?: () => void;
   selected?: boolean;
 }
@@ -33,10 +34,14 @@ function formatCost(idr: number): string {
 export default function RouteOptionCard({ option, onSelect, selected }: Props) {
   return (
     <div
-      className="card"
+      className={`card ${onSelect ? 'hover-lift-card' : ''}`}
       style={{
+        background: '#FFFFFF',
         borderColor: selected ? 'var(--color-primary)' : 'var(--color-border)',
+        boxShadow: selected ? '0 0 0 2px var(--color-primary), var(--shadow-card)' : 'var(--shadow-card)',
         cursor: onSelect ? 'pointer' : 'default',
+        padding: 20,
+        borderRadius: 16,
       }}
       onClick={onSelect}
     >

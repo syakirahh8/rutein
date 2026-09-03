@@ -4,18 +4,18 @@ export interface DetectedNavigationIntent {
 }
 
 /**
- * Extracts a destination phrase from a natural-language message, e.g.
- * "how do I get to Pasar Rebo?" -> "Pasar Rebo".
- *
- * This is intentionally simple pattern matching, not NLU — it's meant to
- * catch the common phrasings from the ticket ("How do I get to X",
- * "What should I take to X", "Go to X"). Ambiguous or unmatched phrasing
- * falls through to `isRouteRequest: false` and the existing passive
- * context still applies (nearby places/transport, current route if one
- * was manually set on the map page, etc.) — this only adds a new
- * capability, it doesn't remove the old one.
+ * Extracts a destination phrase from natural language messages in both
+ * Indonesian and English. (e.g. "mau ke South Quarter" -> "South Quarter",
+ * "naik apa ke Lotte Mart Fatmawati" -> "Lotte Mart Fatmawati", "South Quarter deh" -> "South Quarter").
  */
 const ROUTE_TRIGGER_PATTERNS: RegExp[] = [
+  // Indonesian patterns
+  /(?:mau|ingin|rute|cara|bagaimana cara|naik apa|naik apa ke|arah)\s+(?:ke|menuju)\s+(.+)/i,
+  /(?:mau|ingin|rute|cara|naik apa)\s+(.+)/i,
+  /(?:ke|menuju)\s+(.+)/i,
+  /(.+)\s+(?:deh|dong|ya|aja|pas)/i,
+
+  // English patterns
   /how (?:do|can) i (?:get|reach) to\s+(.+)/i,
   /how (?:do|can) i (?:get|reach)\s+(.+)/i,
   /get me to\s+(.+)/i,
@@ -30,6 +30,7 @@ const ROUTE_TRIGGER_PATTERNS: RegExp[] = [
 
 export function detectNavigationIntent(text: string): DetectedNavigationIntent {
   const trimmed = text.trim();
+  if (!trimmed) return { isRouteRequest: false, destinationQuery: null };
 
   for (const pattern of ROUTE_TRIGGER_PATTERNS) {
     const match = trimmed.match(pattern);
@@ -41,6 +42,12 @@ export function detectNavigationIntent(text: string): DetectedNavigationIntent {
         return { isRouteRequest: true, destinationQuery };
       }
     }
+  }
+
+  // Fallback: If user inputs a direct location query like "South Quarter" or "Lotte Mart Fatmawati"
+  // (2 words or more, or noun phrase), treat it as a direct route request!
+  if (trimmed.length >= 3 && !trimmed.endsWith('?')) {
+    return { isRouteRequest: true, destinationQuery: trimmed };
   }
 
   return { isRouteRequest: false, destinationQuery: null };

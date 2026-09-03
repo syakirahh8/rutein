@@ -49,8 +49,12 @@ const panel: React.CSSProperties = {
   top: 50,
   left: 10,
   zIndex: 10,
-  width: 200,
-  padding: 12,
+  width: 210,
+  padding: 14,
+  background: '#FFFFFF',
+  border: '1.5px solid var(--color-border)',
+  borderRadius: 'var(--radius-md)',
+  boxShadow: 'var(--shadow-card)',
 };
 
 const row: React.CSSProperties = {
@@ -58,6 +62,7 @@ const row: React.CSSProperties = {
   alignItems: 'center',
   gap: 8,
   cursor: 'pointer',
+  padding: '3px 0',
 };
 
 const closeBtn: React.CSSProperties = {
@@ -68,4 +73,8 @@ const closeBtn: React.CSSProperties = {
   height: 22,
   fontSize: 11,
   color: 'var(--color-text)',
+  cursor: 'pointer',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
 };

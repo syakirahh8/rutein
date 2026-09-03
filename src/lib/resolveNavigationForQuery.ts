@@ -6,12 +6,6 @@ import type {
   NavigationResolutionStatus,
 } from '@/types/confusedMode.types';
 
-// NOTE: PlaceResult's exact type (src/types/domain.types.ts) wasn't
-// available when this was written. Its shape is inferred from
-// geocodingService.ts's toPlaceResult(): { lat, lng, label, address,
-// placeId }, all required. If `address` is actually optional/nullable
-// there, the `address: originAddress ?? ''` fallback below still works
-// either way — but worth a quick confirm against the real type.
 interface PlaceResultLike {
   lat: number;
   lng: number;
@@ -25,27 +19,19 @@ export interface ResolveNavigationResult {
   navigationResult: AIContextNavigationResult | null;
 }
 
-/**
- * Resolves a natural-language destination into a real, calculated route
- * comparison. This is the piece that was entirely missing before: it
- * turns "Pasar Rebo" into actual geocoded coordinates (via the existing
- * Nominatim-backed geocodingService, same throttled queue as everything
- * else) and then a real Efficient/Cheapest/Hurry comparison (via the
- * existing routeService — no routing logic duplicated here).
- *
- * Every number in the returned result came from mapService (real or
- * clearly-flagged-estimate walking/driving directions) or routeService's
- * fare/speed model. Nothing here is invented, and nothing here is passed
- * through the AI to compute — that's the whole point.
- */
+const DEFAULT_JAKARTA_ORIGIN: GpsPosition = {
+  latitude: -6.2088,
+  longitude: 106.8456,
+  accuracy: 10,
+};
+
 export async function resolveNavigationForQuery(
   destinationQuery: string,
   origin: GpsPosition | null,
   originAddress: string | null
 ): Promise<ResolveNavigationResult> {
-  if (!origin) {
-    return { status: 'no_origin', navigationResult: null };
-  }
+  // Use user's live GPS origin or fallback to Sudirman Jakarta
+  const activeOrigin = origin || DEFAULT_JAKARTA_ORIGIN;
 
   let candidates: PlaceResultLike[];
 
@@ -56,22 +42,17 @@ export async function resolveNavigationForQuery(
     return { status: 'error', navigationResult: null };
   }
 
-  if (candidates.length === 0) {
+  if (!candidates || candidates.length === 0) {
     return { status: 'not_found', navigationResult: null };
   }
 
-  // Take the top-ranked match. searchPlaces is Jakarta-biased and returns
-  // Nominatim's own relevance ordering, so this is a reasonable default —
-  // but it means genuine ambiguity (e.g. two similarly-named places) isn't
-  // surfaced to the user for disambiguation yet. See conversation notes
-  // for this as a known follow-up rather than something fixed here.
   const destination = candidates[0];
 
   const originPlace: PlaceResultLike = {
-    lat: origin.latitude,
-    lng: origin.longitude,
-    label: 'Current location',
-    address: originAddress ?? '',
+    lat: activeOrigin.latitude,
+    lng: activeOrigin.longitude,
+    label: origin ? 'Lokasi Terkini Pengguna' : 'Stasiun Sudirman (Default)',
+    address: originAddress ?? 'Sudirman, Jakarta',
     placeId: 'current-location',
   };
 
@@ -110,7 +91,7 @@ export async function resolveNavigationForQuery(
           distanceMeters: Math.round(leg.distanceM),
           durationSeconds: Math.round(leg.durationS),
           estimatedCostIdr: leg.estimatedCostIdr,
-          instructions: leg.instructions,
+          instructions: leg.instructions ?? '',
         })),
       })),
     };

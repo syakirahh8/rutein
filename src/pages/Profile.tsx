@@ -266,7 +266,7 @@ export default function Profile() {
       : [...currentList, t];
 
     try {
-      const updatedPrefs = await upsertPreferences(user.id, { preferred_transport: newList });
+      const updatedPrefs = await upsertPreferences(user.id, { preferred_transport: newList as any });
       setPreferences(updatedPrefs);
     } catch (err) {
       console.error('Failed to update transport preferences', err);

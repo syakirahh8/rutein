@@ -16,7 +16,7 @@ export const TRANSPORT_TYPE_COLOR: Record<IndonesiaTransportType, string> = {
   other: '#90A0BE',
 };
 
-type IconComponent = React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }>;
+type IconComponent = React.ComponentType<any>;
 
 const TRANSPORT_TYPE_ICON: Record<IndonesiaTransportType, IconComponent> = {
   transjakarta: Bus,
@@ -57,7 +57,7 @@ export default function TransportMarkerIcon({ type, highlighted = false }: Props
         height: size,
         borderRadius: '50%',
         background: color,
-        border: '2px solid #0B1220',
+        border: '2px solid #FFFFFF',
         boxShadow: highlighted ? '0 0 0 5px rgba(255,255,255,0.15), 0 2px 6px rgba(0,0,0,0.4)' : '0 2px 5px rgba(0,0,0,0.35)',
         display: 'flex',
         alignItems: 'center',
@@ -121,7 +121,7 @@ export function LegModeMarker({ mode }: { mode: TransportMode }) {
         height: 26,
         borderRadius: '50%',
         background: color,
-        border: '2px solid #0B1220',
+        border: '2px solid #FFFFFF',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
