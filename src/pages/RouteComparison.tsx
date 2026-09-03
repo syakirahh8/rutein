@@ -77,13 +77,13 @@ export default function RouteComparison() {
   }
 
   return (
-    <div className="container">
-      <h1>Compare routes</h1>
-      <p style={{ color: 'var(--color-text-muted)', marginTop: 0 }}>
+    <div className="container" style={{ paddingTop: 28, paddingBottom: 80 }}>
+      <h1 style={{ fontSize: 'clamp(26px, 4vw, 34px)', marginBottom: 6 }}>Compare routes</h1>
+      <p style={{ color: 'var(--color-text-muted)', marginTop: 0, marginBottom: 24, fontSize: 14 }}>
         Three ways to get there: the efficient pick, the cheapest, and the fastest if you're in a hurry.
       </p>
 
-      <div className="card" style={{ marginBottom: 20, display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div className="card" style={{ marginBottom: 24, background: '#FFFFFF', borderRadius: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div>
           <label className="label">From</label>
           <PlaceSearchInput value={origin?.label} placeholder={usingCurrentLocation ? 'Detecting current location…' : 'Origin'} onSelect={setOrigin} />

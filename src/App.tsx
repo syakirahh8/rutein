@@ -21,8 +21,10 @@ import Profile from '@/pages/Profile';
 function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <ProtectedRoute>
-      <NavBar />
-      {children}
+      <div style={{ minHeight: '100vh', background: 'var(--color-bg)', color: 'var(--color-text)' }}>
+        <NavBar />
+        <main>{children}</main>
+      </div>
     </ProtectedRoute>
   );
 }

@@ -1,5 +1,6 @@
 import type { IndonesiaTransportType } from '@/data/indonesiaTransportData';
 import type { RouteOption } from '@/types/domain.types';
+import type { LogicalRouteOption } from '@/services/routeService';
 
 export interface BudgetRouteCandidate {
   id: string;
@@ -10,7 +11,7 @@ export interface BudgetRouteCandidate {
   walkingDistanceM: number;
   modes: IndonesiaTransportType[];
   description: string;
-  routeOptionRef?: RouteOption;
+  routeOptionRef?: RouteOption | LogicalRouteOption;
 }
 
 export interface BudgetEvaluationResult {

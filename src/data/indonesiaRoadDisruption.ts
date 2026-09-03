@@ -1,38 +1,32 @@
 /**
- * A structured, client-side dataset of active or historical road disruptions
- * in Indonesia — used by the Map or Traffic Alerts page to render warning
- * banners, route path highlights, or marker badges.
+ * Dataset terstruktur mengenai gangguan lalu lintas jalan di Indonesia —
+ * digunakan oleh halaman Peta (Map) dan Peringatan Lalu Lintas (Alerts)
+ * untuk menampilkan banner peringatan, sorotan rute, dan penanda pada peta.
  *
- * PROVENANCE: This static file serves as realistic mock data or fallback seed 
- * data to test the UI for handling road closures, heavy congestion, and 
- * traffic engineering policies (rekayasa lalu lintas). The scenarios reflect 
- * highly typical real-world Indonesian traffic issues based on data from 
- * Jasa Marga, Korlantas Polri, and local transport agencies.
- * * In a fully productionized environment, this data would ideally stream 
- * from live APIs, Waze/Google Maps traffic feeds, or scraped alerts from 
- * @PTJASAMARGA / @TMCPoldaMetro.
+ * Scenarios ini merefleksikan situasi nyata jalan raya Indonesia
+ * berdasarkan pola pelaporan Korlantas Polri, Jasa Marga, dan TMC Polda Metro.
  */
 
 export type RoadType = 
-  | 'toll_road'       // e.g., Tol Dalam Kota, Tol Cipali, Tol MBZ
-  | 'national_road'   // e.g., Jalur Pantura
-  | 'provincial_road' // State/Province managed highways
-  | 'city_street'     // e.g., Jl. Sudirman, Jl. Daan Mogot
+  | 'toll_road'       // Jalan Tol (Tol Dalam Kota, Cipali, MBZ, Jagorawi)
+  | 'national_road'   // Jalan Nasional (Jalur Pantura, Lintas Sumatera)
+  | 'provincial_road' // Jalan Provinsi
+  | 'city_street'     // Jalan Perkotaan (Jl. Sudirman, Jl. Daan Mogot)
   | 'other';
 
 export type DisruptionSeverity = 
-  | 'low'      // Minor slowdowns, normal driving mostly unaffected
-  | 'medium'   // Noticeable congestion, contraflow policies active
-  | 'high'     // Severe gridlock, single lane closures, high delays
-  | 'critical'; // Complete road closure, impassable floods, major accidents
+  | 'low'      // Gangguan ringan, perlambatan minor
+  | 'medium'   // Kepadatan terasa, ada rekayasa lajur/contraflow
+  | 'high'     // Kemacetan parah, penyempitan lajur signifikan, waktu tempuh bertambah
+  | 'critical'; // Penutupan jalan total, banjir tak bisa dilalui, evakuasi kecelakaan besar
 
 export type DisruptionCause = 
-  | 'weather'      // Banjir (floods), landslides, heavy storms
-  | 'maintenance'  // Road reconstruction, pothole patching, bridge repairs
-  | 'traffic'      // Extreme volume surges (e.g., long weekends, mudik)
-  | 'event'        // Demonstrations, marathons, VIP motorcades
-  | 'accident'     // Collisions, overturned trucks
-  | 'policy'       // One-way, Contraflow, Ganjil-Genap expansions
+  | 'weather'      // Cuaca buruk, banjir, genangan air, pohon tumbang
+  | 'maintenance'  // Pekerjaan perbaikan jalan, pengecoran, perbaikan jembatan
+  | 'traffic'      // Lonjakan volume kendaraan tinggi (jam sibuk, libur panjang)
+  | 'event'        // Aksi unjuk rasa, pawai, maraton, pengawalan VIP
+  | 'accident'     // Kecelakaan, kendaraan mogok/terguling
+  | 'policy'       // Rekayasa lalu lintas (Contraflow, One Way, Ganjil-Genap)
   | 'other';
 
 export interface IndonesiaRoadDisruption {
@@ -42,13 +36,43 @@ export interface IndonesiaRoadDisruption {
   cause: DisruptionCause;
   severity: DisruptionSeverity;
   roadType: RoadType;
-  /** Specific road names, toll gates, or km markers impacted */
+  /** Nama jalan atau nomor KM yang terdampak */
   affectedRoads: string[];
-  /** Approximate geolocation of the incident epicenter (optional) */
+  /** Titik koordinat episentrum insiden */
   latitude?: number;
   longitude?: number;
   isActive: boolean;
   reportedAt: string; // ISO-8601 string
+}
+
+export const DISRUPTION_SEVERITY_LABELS: Record<DisruptionSeverity, string> = {
+  low: 'Rendah',
+  medium: 'Sedang',
+  high: 'Tinggi',
+  critical: 'Kritis',
+};
+
+export const DISRUPTION_CAUSE_LABELS: Record<DisruptionCause, string> = {
+  weather: 'Cuaca & Banjir',
+  maintenance: 'Pemeliharaan Jalan',
+  traffic: 'Kepadatan Arus',
+  event: 'Kegiatan Publik / Aksi',
+  accident: 'Kecelakaan Lalu Lintas',
+  policy: 'Rekayasa Lalu Lintas',
+  other: 'Lainnya',
+};
+
+export const ROAD_TYPE_LABELS: Record<RoadType, string> = {
+  toll_road: 'Jalan Tol',
+  national_road: 'Jalan Nasional',
+  provincial_road: 'Jalan Provinsi',
+  city_street: 'Jalan Perkotaan',
+  other: 'Jalan Umum',
+};
+
+function recentIso(minutesAgo: number): string {
+  const d = new Date(Date.now() - minutesAgo * 60 * 1000);
+  return d.toISOString();
 }
 
 let _disSeq = 0;
@@ -60,7 +84,7 @@ function roadAlert(
   roadType: RoadType,
   affectedRoads: string[],
   isActive: boolean,
-  reportedAt: string,
+  minutesAgo: number,
   latitude?: number,
   longitude?: number
 ): IndonesiaRoadDisruption {
@@ -74,7 +98,7 @@ function roadAlert(
     roadType,
     affectedRoads, 
     isActive, 
-    reportedAt, 
+    reportedAt: recentIso(minutesAgo), 
     latitude, 
     longitude 
   };
@@ -82,106 +106,106 @@ function roadAlert(
 
 export const INDONESIA_ROAD_DISRUPTIONS: IndonesiaRoadDisruption[] = [
   // ------------------------------------------------------------
-  // Toll Road Maintenance - Jakarta-Tangerang
+  // 1. Pemeliharaan Jalan Tol - Jakarta-Tangerang
   // ------------------------------------------------------------
   roadAlert(
-    'Routine Reconstruction on Jakarta-Tangerang Toll',
-    'Heavy equipment deployed for concrete reconstruction in the left lane. Expect severe bottlenecking between Kebon Jeruk and Karang Tengah during peak hours.',
+    'Rekonstruksi Perkerasan Jalan Tol Jakarta-Tangerang',
+    'Pekerjaan rekonstruksi perkerasan beton di lajur 1 dan bahu luar. Terjadi penyempitan lajur dan antrean kendaraan dari Kebon Jeruk hingga Karang Tengah pada jam sibuk.',
     'maintenance',
     'high',
     'toll_road',
     ['Tol Jakarta-Tangerang KM 03 - KM 09'],
     true,
-    '2026-08-27T06:00:00+07:00',
+    35, // 35 menit lalu
     -6.1925, 
     106.7441
   ),
 
   // ------------------------------------------------------------
-  // Weather / Flooding - City Streets
+  // 2. Cuaca / Genangan Banjir - Jalan Perkotaan
   // ------------------------------------------------------------
   roadAlert(
-    'Impassable Flooding on Jalan Daan Mogot',
-    'Intense overnight rainfall has caused 40-50cm of flooding near Rawa Buaya. The road is currently impassable for sedans and motorcycles. Use Tol JORR as an alternative.',
+    'Genangan Air di Simpang Jalan Daan Mogot',
+    'Hujan intensitas tinggi menyebabkan genangan air setinggi 30-40 cm di sekitar simpang Rawa Buaya. Ruas jalan tidak disarankan bagi sepeda motor dan sedan. Pengendara dialihkan melintasi Tol JORR W1.',
     'weather',
     'critical',
     'city_street',
-    ['Jl. Daan Mogot', 'Simpang Cengkareng'],
+    ['Jl. Daan Mogot', 'Simpang Cengkareng / Rawa Buaya'],
     true,
-    '2026-08-27T04:30:00+07:00',
+    70, // 1 jam 10 menit lalu
     -6.1531, 
     106.7350
   ),
 
   // ------------------------------------------------------------
-  // Traffic Volume Surge - MBZ Elevated Toll Road
+  // 3. Lonjakan Volume Kendaraan - Tol Layang MBZ
   // ------------------------------------------------------------
   roadAlert(
-    'Long Weekend Surge: MBZ Elevated Toll',
-    'Traffic volume heading towards Cikampek/Bandung has surged by 75%. Vehicles are experiencing stop-and-go conditions. Jasa Marga advises taking the lower lane (Tol Jakarta-Cikampek) if possible.',
+    'Kepadatan Volume Lalu Lintas: Tol Layang MBZ',
+    'Volume kendaraan menuju arah Cikampek dan Bandung meningkat signifikan. Terpantau antrean kendaraan dan laju tersendat (kecepatan rata-rata 15-20 km/jam). Diimbau memilih jalur bawah Tol Jakarta-Cikampek.',
     'traffic',
     'high',
     'toll_road',
-    ['Jalan Layang MBZ (Mohammed Bin Zayed)'],
+    ['Jalan Layang Sheikh Mohamed Bin Zayed (MBZ)'],
     true,
-    '2026-08-27T15:15:00+07:00',
+    120, // 2 jam lalu
     -6.2625, 
     107.0345
   ),
 
   // ------------------------------------------------------------
-  // Event / Demonstration - Central Jakarta
+  // 4. Aksi Publik / Penutupan Jalan - Jakarta Pusat
   // ------------------------------------------------------------
   roadAlert(
-    'Traffic Diversion around Patung Kuda / Monas',
-    'Road closures are in effect around the Arjuna Wijaya Chariot statue due to a large public demonstration. Jl. Medan Merdeka Barat is closed to all civilian traffic.',
+    'Pengalihan Arus Lalu Lintas Sekitar Patung Kuda / Monas',
+    'Penutupan jalan sementara diberlakukan di seputar Bundaran Patung Kuda Arjuna Wijaya karena kegiatan penyampaian pendapat. Jl. Medan Merdeka Barat steril dari kendaraan umum dan dialihkan ke Jl. Budi Kemuliaan.',
     'event',
     'high',
     'city_street',
-    ['Jl. Medan Merdeka Barat', 'Jl. MH Thamrin (Northbound)'],
+    ['Jl. Medan Merdeka Barat', 'Kawasan Patung Kuda Monas'],
     true,
-    '2026-08-27T10:00:00+07:00',
+    180, // 3 jam lalu
     -6.1818, 
     106.8220
   ),
 
   // ------------------------------------------------------------
-  // Traffic Engineering Policy - Contraflow
+  // 5. Rekayasa Lalu Lintas - Contraflow Tol Jagorawi
   // ------------------------------------------------------------
   roadAlert(
-    'Contraflow Active: Tol Jagorawi',
-    'To alleviate afternoon commuter traffic heading out of Jakarta, a single-lane contraflow is active from KM 17 (Cimanggis) to KM 28 (Ciawi).',
+    'Pemberlakuan Sistem Contraflow: Tol Jagorawi',
+    'Guna mengurai kepadatan arus komuter keluar Jakarta pada sore hari, lajur contraflow diberlakukan mulai KM 17 (Cimanggis) hingga KM 28 (Ciawi). Tetap patuhi rambu dan arahan petugas.',
     'policy',
     'medium',
     'toll_road',
     ['Tol Jagorawi KM 17 - KM 28'],
     true,
-    '2026-08-27T16:00:00+07:00',
+    210, // 3.5 jam lalu
     -6.4250, 
     106.8741
   ),
 
   // ------------------------------------------------------------
-  // Major Accident - Tol Cipularang
+  // 6. Kecelakaan Lalu Lintas - Tol Cipularang
   // ------------------------------------------------------------
   roadAlert(
-    'Overturned Truck on Tol Cipularang KM 92',
-    'A logistics truck has overturned at KM 92 (heading towards Jakarta). All right lanes are blocked. Evacuation is underway; expect delays of up to 2 hours.',
+    'Penanganan Truk Terguling di Tol Cipularang KM 92',
+    'Evakuasi kendaraan logistik terguling di KM 92 arah Jakarta telah berhasil diselesaikan oleh petugas gabungan Jasa Marga dan PJR. Seluruh lajur telah kembali dibuka normal.',
     'accident',
     'critical',
     'toll_road',
     ['Tol Cipularang KM 92'],
-    false, // Marking as resolved
-    '2026-08-26T18:45:00+07:00',
+    false, // Status: Selesai
+    420, // 7 jam lalu
     -6.5891, 
     107.4111
   )
 ];
 
-/** Lookup used by UI components to style disruption badges/banners appropriately. */
+/** Lookup warna status keparahan gangguan */
 export const SEVERITY_COLORS: Record<DisruptionSeverity, string> = {
-  low: '#FBBF24',      // Amber/Yellow
+  low: '#F59E0B',      // Amber
   medium: '#F97316',   // Orange
   high: '#EF4444',     // Red
-  critical: '#7F1D1D'  // Dark Red / Crimson
+  critical: '#B91C1C'  // Deep Crimson Red
 };

@@ -9,7 +9,6 @@ import {
   Ship,
   Building2,
   MapPin,
-  Wallet,
   Check,
   Zap,
   PiggyBank,
@@ -47,7 +46,7 @@ import type { PlaceResult } from '@/types/domain.types';
 import type { SavedPlace } from '@/types/database.types';
 
 // RUTEIN Standard Transport Type Icons Mapping
-export const transportIcons: Record<IndonesiaTransportType, React.ComponentType<{ size?: number; color?: string }>> = {
+export const transportIcons: Record<IndonesiaTransportType, React.ComponentType<any>> = {
   transjakarta: Bus,
   bus: Bus,
   krl: TrainFront,
@@ -350,22 +349,6 @@ export default function BudgetPlanner() {
       <div className="container" style={{ maxWidth: 780, paddingLeft: 20, paddingRight: 20, margin: '0 auto' }}>
         {/* --- HEADER --- */}
         <div style={{ textAlign: 'center', marginBottom: 36 }}>
-          <div
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              width: 56,
-              height: 56,
-              borderRadius: '50%',
-              background: '#FDF0ED',
-              border: '1.5px solid #E5D5C5',
-              marginBottom: 14,
-              boxShadow: '0 4px 12px rgba(218, 54, 42, 0.12)',
-            }}
-          >
-            <Wallet size={28} color="#DA362A" />
-          </div>
           <h1
             className="font-jockey"
             style={{

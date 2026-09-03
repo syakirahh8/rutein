@@ -91,7 +91,7 @@ export async function resolveNavigationForQuery(
           distanceMeters: Math.round(leg.distanceM),
           durationSeconds: Math.round(leg.durationS),
           estimatedCostIdr: leg.estimatedCostIdr,
-          instructions: leg.instructions,
+          instructions: leg.instructions ?? '',
         })),
       })),
     };

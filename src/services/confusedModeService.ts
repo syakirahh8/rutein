@@ -71,7 +71,7 @@ DATA KONTEKS PENGGUNA SAAT INI:
 - Halte/Stasiun Terdekat: ${context.nearbyTransport.map(t => `${t.name} (${t.type}, ${t.distanceMeters}m)`).join(', ') || 'Tidak ada'}
 - Tempat Terdekat: ${context.nearbyPlaces.map(p => p.name).join(', ') || 'Tidak ada'}
 - Gangguan Layanan Aktif: ${context.activeDisruptions.map(d => d.title).join(', ') || 'Tidak ada'}
-- Rute Terhitung: ${context.navigationResult ? `Ke ${context.navigationResult.destinationLabel} via ${context.navigationResult.bestRouteLabel} (Durasi ~${Math.round(context.navigationResult.bestRouteDurationS / 60)} min, Tarif Rp${context.navigationResult.bestRouteCostIdr})` : 'Tidak ada'}`;
+- Rute Terhitung: ${context.navigationResult && context.navigationResult.options.length > 0 ? `Ke ${context.navigationResult.resolvedDestination.name || context.navigationResult.destinationQuery} via ${context.navigationResult.options[0].label} (Durasi ~${Math.round(context.navigationResult.options[0].totalDurationSeconds / 60)} min, Tarif Rp${context.navigationResult.options[0].totalCostIdr})` : 'Tidak ada'}`;
 
       const contents = [
         { role: 'user', parts: [{ text: systemInstruction }] },

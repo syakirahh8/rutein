@@ -57,14 +57,16 @@ export default function Preferences() {
     }
   }
 
-  if (loading) return <div className="container"><p style={{ color: 'var(--color-text-muted)' }}>Loading…</p></div>;
+  if (loading) return <div className="container" style={{ paddingTop: 36 }}><p style={{ color: 'var(--color-text-muted)' }}>Loading…</p></div>;
 
   return (
-    <div className="container">
-      <h1>Travel preferences</h1>
-      <p style={{ color: 'var(--color-text-muted)', marginTop: 0 }}>These influence how routes are ranked for you.</p>
+    <div className="container" style={{ paddingTop: 28, paddingBottom: 80 }}>
+      <h1 style={{ fontSize: 'clamp(26px, 4vw, 34px)', marginBottom: 6 }}>Travel preferences</h1>
+      <p style={{ color: 'var(--color-text-muted)', marginTop: 0, marginBottom: 24, fontSize: 14 }}>
+        These settings customize and influence how route alternatives are ranked for you.
+      </p>
 
-      <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+      <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 20, background: '#FFFFFF', borderRadius: 16, padding: 24 }}>
         <div>
           <label className="label">Preferred transportation modes</label>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -73,8 +75,13 @@ export default function Preferences() {
                 key={m.value}
                 className="btn"
                 style={{
-                  background: prefs.preferred_transport?.includes(m.value) ? 'var(--color-primary)' : 'var(--color-surface-raised)',
-                  color: prefs.preferred_transport?.includes(m.value) ? '#071023' : 'var(--color-text)',
+                  background: prefs.preferred_transport?.includes(m.value) ? 'var(--color-primary)' : '#FFFFFF',
+                  color: prefs.preferred_transport?.includes(m.value) ? '#FFFFFF' : 'var(--color-text)',
+                  border: '1.5px solid',
+                  borderColor: prefs.preferred_transport?.includes(m.value) ? 'var(--color-primary)' : 'var(--color-border)',
+                  borderRadius: 10,
+                  fontWeight: 600,
+                  padding: '8px 16px',
                 }}
                 onClick={() => toggleMode(m.value)}
                 type="button"
@@ -94,7 +101,7 @@ export default function Preferences() {
             step={100}
             value={prefs.max_walking_distance_m ?? 1000}
             onChange={(e) => setPrefs((p) => ({ ...p, max_walking_distance_m: parseInt(e.target.value) }))}
-            style={{ width: '100%' }}
+            style={{ width: '100%', accentColor: 'var(--color-primary)' }}
           />
         </div>
 
@@ -142,7 +149,7 @@ export default function Preferences() {
           </select>
         </div>
 
-        <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
+        <button className="btn btn-primary" onClick={handleSave} disabled={saving} style={{ padding: '12px', borderRadius: 10, marginTop: 6 }}>
           {saving ? 'Saving…' : saved ? 'Saved ✓' : 'Save preferences'}
         </button>
       </div>
@@ -152,9 +159,9 @@ export default function Preferences() {
 
 function ToggleRow({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
   return (
-    <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}>
-      <span style={{ fontSize: 14 }}>{label}</span>
-      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} style={{ width: 20, height: 20 }} />
+    <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', padding: '6px 0', borderBottom: '1px solid #F3E7DC' }}>
+      <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--color-text)' }}>{label}</span>
+      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} style={{ width: 18, height: 18, accentColor: 'var(--color-primary)' }} />
     </label>
   );
 }

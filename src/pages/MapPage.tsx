@@ -17,7 +17,7 @@ import { getCurrentPosition, isGeolocationSupported, distanceMeters } from '@/se
 import { findNearbyStops } from '@/services/transportService';
 import { reverseGeocode } from '@/services/geocodingService';
 import { INDONESIA_TRANSPORT_DATA, TRANSPORT_TYPE_LABELS, type IndonesiaTransportType, type IndonesiaTransportLocation } from '@/data/indonesiaTransportData';
-import { INDONESIA_ROAD_DISRUPTIONS, SEVERITY_COLORS } from '@/data/indonesiaRoadDisruption';
+import { INDONESIA_ROAD_DISRUPTIONS, SEVERITY_COLORS, DISRUPTION_SEVERITY_LABELS, DISRUPTION_CAUSE_LABELS } from '@/data/indonesiaRoadDisruption';
 import type { PlaceResult, GeoPoint, RouteOption, RouteLeg } from '@/types/domain.types';
 import type { TransportStop } from '@/types/database.types';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -316,16 +316,16 @@ export default function MapPage() {
   const routeColor = travelMode === 'walk' ? '#38BDF8' : '#F97316';
 
   return (
-    <div className="container" style={{ paddingBottom: 24 }}>
-      <h1>Map</h1>
-      <p style={{ color: 'var(--color-text-muted)', marginTop: 0, fontSize: 13 }}>
+    <div className="container" style={{ paddingTop: 28, paddingBottom: 80 }}>
+      <h1 style={{ fontSize: 'clamp(26px, 4vw, 34px)', marginBottom: 6 }}>Map</h1>
+      <p style={{ color: 'var(--color-text-muted)', marginTop: 0, marginBottom: 20, fontSize: 14 }}>
         {itineraryOption
           ? 'Showing your planned route below — walk, transit, and ojek legs are color-coded.'
           : 'Click a spot once to select it, click it again to look around at street level.'}
       </p>
 
       {!itineraryOption && (
-        <div className="card" style={{ marginBottom: 16 }}>
+        <div className="card" style={{ marginBottom: 16, background: '#FFFFFF', borderRadius: 16 }}>
           <PlaceSearchInput placeholder="Search a place or address…" onSelect={handleSearchSelect} />
         </div>
       )}
@@ -394,14 +394,14 @@ export default function MapPage() {
               <div
                 style={{
                   background: routeColor,
-                  color: '#0B1220',
+                  color: '#FFFFFF',
                   fontSize: 12,
                   fontWeight: 700,
-                  padding: '3px 8px',
-                  borderRadius: 6,
-                  border: '2px solid #0B1220',
+                  padding: '4px 10px',
+                  borderRadius: 8,
+                  border: '2px solid #FFFFFF',
                   whiteSpace: 'nowrap',
-                  boxShadow: '0 2px 4px rgba(0,0,0,0.25)',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.25)',
                   pointerEvents: 'none',
                 }}
               >
@@ -501,7 +501,7 @@ export default function MapPage() {
                 setPopupTarget('place');
               }}
             >
-              <div style={{ width: 16, height: 16, borderRadius: '50%', background: '#F97316', border: '2px solid #0B1220' }} />
+              <div style={{ width: 16, height: 16, borderRadius: '50%', background: '#F97316', border: '2px solid #FFFFFF', boxShadow: '0 2px 6px rgba(0,0,0,0.25)' }} />
             </Marker>
           )}
           {!itineraryOption && selectedPlace && popupTarget === 'place' && (
@@ -526,7 +526,7 @@ export default function MapPage() {
                   height: hoveredDisruptionId === d.id ? 30 : 24,
                   borderRadius: '50%',
                   background: SEVERITY_COLORS[d.severity],
-                  border: '2px solid #0B1220',
+                  border: '2px solid #FFFFFF',
                   boxShadow: hoveredDisruptionId === d.id 
                     ? '0 0 0 5px rgba(255,255,255,0.15), 0 2px 6px rgba(0,0,0,0.4)' 
                     : '0 2px 5px rgba(0,0,0,0.35)',
@@ -566,14 +566,14 @@ export default function MapPage() {
                       background: SEVERITY_COLORS[d.severity] + '22',
                       color: SEVERITY_COLORS[d.severity],
                     }}>
-                      {d.severity}
+                      {DISRUPTION_SEVERITY_LABELS[d.severity] ?? d.severity}
                     </span>
                   </div>
                   <div style={{ fontSize: 12, color: '#555', marginTop: 4 }}>
                     {d.description}
                   </div>
-                  <div style={{ fontSize: 11, color: '#888', marginTop: 6, textTransform: 'capitalize' }}>
-                    Type: {d.cause}
+                  <div style={{ fontSize: 11, color: '#888', marginTop: 6 }}>
+                    Kategori: {DISRUPTION_CAUSE_LABELS[d.cause] ?? d.cause}
                   </div>
                 </div>
               </Popup>
@@ -629,8 +629,8 @@ export default function MapPage() {
                     height: 18,
                     borderRadius: '50%',
                     background: '#F97316',
-                    border: '3px solid #0B1220',
-                    boxShadow: '0 0 0 6px rgba(249,115,22,0.25)',
+                    border: '3px solid #FFFFFF',
+                    boxShadow: '0 0 0 6px rgba(249,115,22,0.3)',
                   }}
                 />
               </Marker>
@@ -740,10 +740,15 @@ export default function MapPage() {
 }
 
 const mapOverlayBtn: React.CSSProperties = {
+  background: '#FFFFFF',
+  border: '1.5px solid var(--color-border)',
+  color: 'var(--color-text)',
+  borderRadius: 8,
   padding: '6px 12px',
   fontSize: 12,
   fontWeight: 600,
-  boxShadow: '0 2px 6px rgba(0,0,0,0.2)',
+  boxShadow: '0 2px 6px rgba(0,0,0,0.1)',
+  cursor: 'pointer',
 };
 
 const overlayLoadingFallback: React.CSSProperties = {
